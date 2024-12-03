@@ -1,6 +1,4 @@
-export function formatMessage(mainMessage, liveStreamUrl, recordingUrl) {
-    const message = `${mainMessage}
-- Live stream <${liveStreamUrl}|HERE>
-- Motion recording <${recordingUrl}|HERE>`;
+export function formatMessage(mainMessage, recordingUrl) {
+    const message = `@channel: ${mainMessage}: <${recordingUrl}|View recording>`;
     return message;
 }

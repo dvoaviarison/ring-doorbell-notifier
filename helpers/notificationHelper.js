@@ -1,9 +1,21 @@
 import "dotenv/config";
 import axios from 'axios';
+import { WebClient } from '@slack/web-api';
 
 const { env } = process;
 
-export function sendMkdSlackNotification(message) {
+export async function sendSlackNotificationWithSnapshot(message, snapShotFileName) {
+    const filePath = `${env.APP_RECORDING_FOLDER}/${snapShotFileName}`;
+    const slackClient = new WebClient(env.SLACK_BOT_TOKEN);
+    await slackClient.filesUploadV2({
+        channel_id: env.SLACK_CHANNEL_ID,
+        initial_comment: message,
+        file: filePath,
+        filename: snapShotFileName,
+    });
+}
+
+export function sendSimpleSlackNotification(message) {
     const botToken = env.SLACK_BOT_TOKEN;
     const channelId = env.SLACK_CHANNEL_ID;
 
@@ -17,7 +29,7 @@ export function sendMkdSlackNotification(message) {
                     type: 'mrkdwn', 
                     text: message
                 }, 
-            },
+            }
          ],
     };
 

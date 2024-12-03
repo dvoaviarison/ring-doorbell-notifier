@@ -1,9 +1,11 @@
 {
   "dependencies": {
+    "@slack/web-api": "^7.7.0",
     "axios": "^1.7.8",
     "dotenv": "^16.4.5",
     "fs": "^0.0.1-security",
     "googleapis": "^144.0.0",
+    "megajs": "^1.2.0",
     "ring-client-api": "^13.2.0",
     "util": "^0.12.5"
   },
