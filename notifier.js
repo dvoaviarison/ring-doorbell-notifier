@@ -11,15 +11,22 @@ import { formatMessage } from './helpers/messageHelper.js';
 const recordingDurationSec = 20;
 const { env } = process;
 
+async function takeSnapshot(camera, fileName) {
+    try {
+        const snapshotBuffer = await camera.getSnapshot();
+        fs.writeFileSync(fileName, snapshotBuffer);
+        return true;
+    } catch (error) {
+        console.log(error);
+        return false;
+    }
+}
+
 function deleteLocalFileByName(fileName) {
     const filePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
-    fs.unlink(filePath)
-        .then(() => {
-            console.log(`File deleted successfully: ${fileName}`);
-        })
-        .catch((err) => {
-            console.error(`Error deleting file: ${fileName}`, err);
-        });
+    fs.unlink(filePath, () => {
+        console.log(`File deleted successfully: ${fileName}`);
+    });
 }
 
 export async function run() {
@@ -49,22 +56,16 @@ export async function run() {
     locations?.forEach(location => {
         location.cameras?.forEach(camera => {
             camera.onNewNotification.subscribe(async (notif) => {
-                // Take a snapshot
-                const snapshotFileName = `${notif.data.device.name}-${getFormattedDateTime()}.jpg`;
-                var hasSnapShot = true;
-                try {
-                    const snapshotBuffer = await camera.getSnapshot();
-                    fs.writeFileSync(`${env.APP_RECORDING_FOLDER}/${snapshotFileName}`, snapshotBuffer);
-                } catch (error) {
-                    console.log(error);
-                    hasSnapShot = false
-                }
-
                 // Record Video
                 const videoFileName = `${notif.data.device.name}-${getFormattedDateTime()}.mp4`;
                 camera.recordToFile(`${env.APP_RECORDING_FOLDER}/${videoFileName}`, recordingDurationSec).then(async () => {
                     // Upload Video
                     const videoUrl = await uploadFileToMega(videoFileName);
+
+                    // Take a snapshot
+                    const snapshotFileName = `${notif.data.device.name}-${getFormattedDateTime()}.jpg`;
+                    const hasSnapshot = await takeSnapshot(camera, snapshotFileName);
+
                     // Send notification
                     if (videoUrl) {
                         console.log('Sending Notification...');
@@ -72,16 +73,16 @@ export async function run() {
                         var message = formatMessage(
                             notif.android_config.body, 
                             videoUrl ? videoUrl : liveUrl);
-                        if (hasSnapShot){
+                        if (hasSnapshot){
                             sendSlackNotificationWithSnapshot(message, snapshotFileName);
                             deleteLocalFileByName(videoFileName);
                             deleteLocalFileByName(snapshotFileName);
+                            console.log('Notification sent with snapshiot');
                         } else {
                             sendSimpleSlackNotification(message);
                             deleteLocalFileByName(videoFileName);
+                            console.log('Notification sent without snapshot');
                         }
-                        console.log('Notification sent');
-                        
                     }
                 });
             });
