@@ -3,6 +3,7 @@ import { RingApi } from 'ring-client-api';
 import { readFile, writeFile } from "fs";
 import { promisify } from "util";
 import fs from 'fs';
+import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import { getFormattedDateTime } from './helpers/dateHelper.js';
 import { sendSlackNotificationWithSnapshot, sendSimpleSlackNotification } from './helpers/notificationHelper.js';
@@ -10,7 +11,7 @@ import { uploadFileToMega } from './helpers/uploadHelper.js'
 import { formatMessage } from './helpers/messageHelper.js';
 
 const recordingDurationSec = 16;
-const snapshotFromVideoSecond = 3;
+const snapshotFromVideoSecond = 1;
 const { env } = process;
 
 async function takeSnapshotFromVideo(videoFileName, timeSecond, snapshotFileName) {
@@ -32,10 +33,28 @@ async function takeSnapshotFromVideo(videoFileName, timeSecond, snapshotFileName
     });
 }
 
-function deleteLocalFileByName(fileName) {
-    const filePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
-    fs.unlink(filePath, () => {
-        console.log(`File deleted successfully: ${fileName}`);
+function purgeLocalFiles(extensions = ['.jpg', '.mp4']) {
+    const folderPath = env.APP_RECORDING_FOLDER;
+    fs.readdir(folderPath, (err, files) => {
+        if (err) {
+            console.error(`Error reading directory: ${err}`);
+            return;
+        }
+
+        files.forEach((file) => {
+            const filePath = path.join(folderPath, file);
+            const fileExtension = path.extname(file).toLowerCase();
+
+            if (extensions.includes(fileExtension)) {
+                fs.unlink(filePath, (err) => {
+                    if (err) {
+                        console.error(`Error deleting file: ${err}`);
+                        return;
+                    }
+                    console.log(`File deleted successfully: ${filePath}`);
+                });
+            }
+        });
     });
 }
 
@@ -66,6 +85,9 @@ export async function run() {
     locations?.forEach(location => {
         location.cameras?.forEach(camera => {
             camera.onNewNotification.subscribe(async (notif) => {
+                // Purge
+                purgeLocalFiles();
+
                 // Record Video
                 const videoFileName = `${notif.data.device.name}-${getFormattedDateTime()}.mp4`;
                 camera.recordToFile(`${env.APP_RECORDING_FOLDER}/${videoFileName}`, recordingDurationSec).then(async () => {
@@ -84,13 +106,10 @@ export async function run() {
                             notif.android_config.body, 
                             videoUrl ? videoUrl : liveUrl);
                         if (hasSnapshot){
-                            sendSlackNotificationWithSnapshot(message, snapshotFileName);
-                            deleteLocalFileByName(videoFileName);
-                            deleteLocalFileByName(snapshotFileName);
+                            await sendSlackNotificationWithSnapshot(message, snapshotFileName);
                             console.log('Notification sent with snapshiot');
                         } else {
-                            sendSimpleSlackNotification(message);
-                            deleteLocalFileByName(videoFileName);
+                            await sendSimpleSlackNotification(message);
                             console.log('Notification sent without snapshot');
                         }
                     }
