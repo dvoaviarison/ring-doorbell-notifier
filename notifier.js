@@ -10,7 +10,7 @@ import { uploadFileToMega } from './helpers/uploadHelper.js'
 import { formatMessage } from './helpers/messageHelper.js';
 
 const recordingDurationSec = 20;
-const snapshotFromVideoSecond = 1;
+const snapshotFromVideoSecond = 3;
 const { env } = process;
 
 async function takeSnapshotFromVideo(videoFileName, timeSecond, snapshotFileName) {
