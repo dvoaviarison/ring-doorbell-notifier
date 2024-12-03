@@ -9,7 +9,7 @@ import { sendSlackNotificationWithSnapshot, sendSimpleSlackNotification } from '
 import { uploadFileToMega } from './helpers/uploadHelper.js'
 import { formatMessage } from './helpers/messageHelper.js';
 
-const recordingDurationSec = 20;
+const recordingDurationSec = 16;
 const snapshotFromVideoSecond = 3;
 const { env } = process;
 
