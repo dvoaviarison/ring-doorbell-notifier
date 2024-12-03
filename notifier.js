@@ -3,23 +3,33 @@ import { RingApi } from 'ring-client-api';
 import { readFile, writeFile } from "fs";
 import { promisify } from "util";
 import fs from 'fs';
+import ffmpeg from 'fluent-ffmpeg';
 import { getFormattedDateTime } from './helpers/dateHelper.js';
 import { sendSlackNotificationWithSnapshot, sendSimpleSlackNotification } from './helpers/notificationHelper.js';
 import { uploadFileToMega } from './helpers/uploadHelper.js'
 import { formatMessage } from './helpers/messageHelper.js';
 
 const recordingDurationSec = 20;
+const snapshotFromVideoSecond = 1;
 const { env } = process;
 
-async function takeSnapshot(camera, fileName) {
-    try {
-        const snapshotBuffer = await camera.getSnapshot();
-        fs.writeFileSync(fileName, snapshotBuffer);
-        return true;
-    } catch (error) {
-        console.log(error);
-        return false;
-    }
+async function takeSnapshotFromVideo(videoFileName, timeSecond, snapshotFileName) {
+    const videoFilePath = `${env.APP_RECORDING_FOLDER}/${videoFileName}`;
+    return new Promise((resolve) => {
+        ffmpeg(videoFilePath)
+            .screenshots({
+                timestamps: [timeSecond],
+                filename: snapshotFileName,
+                folder: env.APP_RECORDING_FOLDER
+            })
+            .on('end', () => {
+                resolve(true);
+            })
+            .on('error', (err) => {
+                console.log(err);
+                resolve(false);
+            });
+    });
 }
 
 function deleteLocalFileByName(fileName) {
@@ -64,7 +74,7 @@ export async function run() {
 
                     // Take a snapshot
                     const snapshotFileName = `${notif.data.device.name}-${getFormattedDateTime()}.jpg`;
-                    const hasSnapshot = await takeSnapshot(camera, snapshotFileName);
+                    const hasSnapshot = await takeSnapshotFromVideo(videoFileName, snapshotFromVideoSecond, snapshotFileName);
 
                     // Send notification
                     if (videoUrl) {
