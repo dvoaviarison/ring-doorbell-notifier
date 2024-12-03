@@ -11,6 +11,17 @@ import { formatMessage } from './helpers/messageHelper.js';
 const recordingDurationSec = 20;
 const { env } = process;
 
+function deleteLocalFileByName(fileName) {
+    const filePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
+    fs.unlink(filePath)
+        .then(() => {
+            console.log(`File deleted successfully: ${fileName}`);
+        })
+        .catch((err) => {
+            console.error(`Error deleting file: ${fileName}`, err);
+        });
+}
+
 export async function run() {
     const ringApi = new RingApi({
         refreshToken: env.RING_REFRESH_TOKEN,
@@ -44,7 +55,7 @@ export async function run() {
                 try {
                     const snapshotBuffer = await camera.getSnapshot();
                     fs.writeFileSync(`${env.APP_RECORDING_FOLDER}/${snapshotFileName}`, snapshotBuffer);
-                } catch (err) {
+                } catch (error) {
                     console.log(error);
                     hasSnapShot = false
                 }
@@ -56,15 +67,21 @@ export async function run() {
                     const videoUrl = await uploadFileToMega(videoFileName);
                     // Send notification
                     if (videoUrl) {
+                        console.log('Sending Notification...');
                         const liveUrl = `https://account.ring.com/account/dashboard?lv_d=${notif.data.device.id}`;
                         var message = formatMessage(
                             notif.android_config.body, 
                             videoUrl ? videoUrl : liveUrl);
                         if (hasSnapShot){
                             sendSlackNotificationWithSnapshot(message, snapshotFileName);
+                            deleteLocalFileByName(videoFileName);
+                            deleteLocalFileByName(snapshotFileName);
                         } else {
                             sendSimpleSlackNotification(message);
+                            deleteLocalFileByName(videoFileName);
                         }
+                        console.log('Notification sent');
+                        
                     }
                 });
             });

@@ -6,3 +6,9 @@ Simple nodejs app that will let you skop the expensive subscription and
 ## How to use this
 - The hardest part is to fill in the variables in .env.
 - Run `npm install` then `npm start`
+
+## Deploy to docker
+```sh
+docker build -t ring-doorbell-notifier .
+docker run -d --restart always ring-doorbell-notifier 
+```
