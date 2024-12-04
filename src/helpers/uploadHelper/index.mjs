@@ -2,28 +2,11 @@ import "dotenv/config";
 import fs from 'fs';
 import { Storage } from 'megajs'
 import { stat } from 'fs/promises';
+import { checkFileExists } from '../fileHelper/index.mjs';
 
 const { env } = process;
 
-function sleep(ms) { 
-    return new Promise(resolve => setTimeout(resolve, ms)); 
-}
-
-async function checkFileExists(path, retries = 10, delay = 1000) {
-    for (let i = 0; i < retries; i++) {
-        if (fs.existsSync(path)) {
-            return true;
-        }
-        console.log(`File not found. Retrying (${i + 1}/${retries})...`);
-        await sleep(delay);
-    }
-
-    console.log(`File not found after {retries} retries. Giving up`);
-    return false;
-}
-
 export async function uploadFileToMega(fileName) {
-    await sleep(5000);
     const filePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
     const fileExists = await checkFileExists(filePath);
     if (fileExists) {

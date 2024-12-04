@@ -1,5 +1,7 @@
-import { run } from './notifier.js';
+import dotenv from 'dotenv';
+import { run } from './app.mjs';
 
+dotenv.config({ path: '.env' });
 const runWithExceptionRecovery = async () => {
     try {
         await run();
