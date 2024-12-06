@@ -36,11 +36,15 @@ export async function run() {
             camera.onNewNotification.subscribe(async (notif) => {
 
                 // Handle Notification
-                handleRingNotification(camera, notif);
+                await handleRingNotification(camera, notif);
 
                 // Purge
                 purgeLocalFiles();
+
+                // Restart service
+                console.log('Restarting the service');
+                process.exit(0);
             });
         });
-    });
+    }); 
 } 

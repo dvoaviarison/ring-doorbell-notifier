@@ -15,6 +15,9 @@
   "main": "./src/index.js",
   "scripts": {
     "start": "node ./src/index.mjs",
+    "start-service": "forever start ./src/index.mjs",
+    "list-services": "forever list",
+    "stop-service": "forever stop 0",
     "test": "jest"
   },
   "author": "",
@@ -23,6 +26,7 @@
   "devDependencies": {
     "@babel/preset-env": "^7.26.0",
     "babel-jest": "^29.7.0",
+    "forever": "^4.0.3",
     "jest": "^29.7.0"
   }
 }
