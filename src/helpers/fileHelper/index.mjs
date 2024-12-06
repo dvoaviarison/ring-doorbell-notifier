@@ -9,6 +9,7 @@ function sleep(ms) {
 }
 
 export function purgeLocalFiles(
+    callback = () => {},
     folderPath = env.APP_RECORDING_FOLDER, 
     extensions = ['.jpg', '.mp4']) {
     fs.readdir(folderPath, (err, files) => {
@@ -27,7 +28,11 @@ export function purgeLocalFiles(
                         console.error(`Error deleting file: ${err}`);
                         return;
                     }
-                    console.log(`File deleted successfully: ${filePath}`);
+                    else {
+                        console.log(`File deleted successfully: ${filePath}`);
+                    }
+
+                    callback();
                 });
             }
         });

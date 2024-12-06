@@ -39,11 +39,10 @@ export async function run() {
                 await handleRingNotification(camera, notif);
 
                 // Purge
-                purgeLocalFiles();
-
-                // Restart service
-                console.log('Restarting the service');
-                process.exit(0);
+                purgeLocalFiles(async () => { 
+                    console.log('Restarting the service');
+                    process.exit(0);
+                 });
             });
         });
     }); 
