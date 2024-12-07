@@ -6,8 +6,8 @@ import { formatMessage } from '../helpers/messageHelper/index.mjs';
 import { takeSnapshotFromVideo } from '../helpers/videoHelper/index.mjs';
 
 const { env } = process;
-const recordingDurationSec = 15;
-const snapshotFromVideoSecond = 1;
+const recordingDurationSec = 10;
+const snapshotFromVideoSecond = 2;
 
 export async function handleRingNotification(camera, notif) {
     // Record Video
