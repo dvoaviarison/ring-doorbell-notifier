@@ -5,6 +5,7 @@ import { promisify } from "util";
 import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { handleRingNotification } from "./ringNotificationHandler/index.mjs";
 import { stopProcessInMs } from "./helpers/processHelper/index.mjs";
+import { logger } from "./helpers/logHelper/index.mjs";
 
 const { env } = process;
 
@@ -20,7 +21,7 @@ export async function run() {
     // Keep token fresh
     ringApi.onRefreshTokenUpdated.subscribe(
         async ({ newRefreshToken, oldRefreshToken }) => {
-            console.log("Refresh Token Updated");
+            logger.info("Refresh Token Updated");
             if (!oldRefreshToken) {
                 return;
             }
@@ -46,7 +47,7 @@ export async function run() {
                 // Purge
                 purgeLocalFiles(env.APP_AUTO_STOP_MS 
                     ? async () => { 
-                        console.log('Restarting the service');
+                        logger.info('Restarting the service');
                         process.exit(0);
                     }
                     : () => {}
