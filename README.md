@@ -25,3 +25,11 @@ docker build -t ring-doorbell-notifier .
 docker run -d --restart always ring-doorbell-notifier 
 ```
 
+## How to install ollama vision models
+- Install ollama: [Here](https://ollama.com/download/mac)
+- Install the vision model of your choice
+```sh
+ollama run llava:7b
+ollama run llama3.2-vision
+```
+- Make sure you enable AI and set the model name in `.env` file
