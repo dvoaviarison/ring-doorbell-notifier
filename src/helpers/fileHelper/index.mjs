@@ -1,12 +1,9 @@
 import "dotenv/config";
 import fs from 'fs';
 import path from 'path';
+import { sleep } from "../processHelper/index.mjs";
 
 const { env } = process;
-
-function sleep(ms) { 
-    return new Promise(resolve => setTimeout(resolve, ms)); 
-}
 
 export function purgeLocalFiles(
     callback = () => {},
