@@ -1,7 +1,8 @@
 # Ring Doorbell Notifier
-Simple nodejs app that will let you skip the expensive subscription and 
+Simple, AI powered (if [ollama](https://ollama.com) installed) nodejs app that will let you skip the expensive subscription and 
 - Record your motion videos/snapshots directly on your **Mega drive**. Mega because it is the easiest and offers the best amount of free storage
 - Send notification to **slack** with link to these videos when a motion is detected.
+- Use AI to describe what your camera is seeing
 - With this you can enjoy pretty much the same premium features of ring doorbells for totally FREE.
 <img src="./docs/imgs/slack-notif.jpeg" alt="notif" width="400"/>
 
