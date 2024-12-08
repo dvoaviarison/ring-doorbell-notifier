@@ -12,7 +12,7 @@ export async function getSnapshotDescription(fileName, cameraName) {
         model: 'llama3.2-vision',
         messages: [{
             role: 'user',
-            content: `This a snapshot from my ${cameraName}. What is going on in my ${cameraName}. One short sentence please.`,
+            content: `This a snapshot from my ${cameraName}. What is going on in my ${cameraName}. If persons, I am interested in gender, if animal or objects, I am interested in it's nature, color, shape. One short sentence please.`,
             images: [imagePath]
         }]
     });
