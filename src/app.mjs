@@ -45,13 +45,7 @@ export async function run() {
                 await handleRingNotification(camera, notif);
 
                 // Purge
-                purgeLocalFiles(env.APP_AUTO_STOP_MS 
-                    ? async () => { 
-                        logger.info('Restarting the service');
-                        process.exit(0);
-                    }
-                    : () => {}
-                );
+                purgeLocalFiles();
             });
         });
     }); 
