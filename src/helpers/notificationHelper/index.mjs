@@ -19,7 +19,7 @@ export async function sendSlackNotificationWithSnapshot(message, snapShotFileNam
 export async function sendSimpleSlackNotification(message) {
     try {
         const slackClient = new WebClient(env.SLACK_BOT_TOKEN);
-        const res = await slackClient.chat.postMessage({ channelId: env.SLACK_CHANNEL_ID, message });
+        const res = await slackClient.chat.postMessage({ channel: env.SLACK_CHANNEL_ID, text: message });
         logger.info('SlackMessage sent: ', res.ts);
     } catch (error) {
         logger.error('Error sending slack message: ', error);
