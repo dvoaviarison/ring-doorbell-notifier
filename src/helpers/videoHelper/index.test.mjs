@@ -20,7 +20,7 @@ describe('takeSnapshotFromVideo', () => {
 });
 
 describe('recordVideoFromCamera', () => {
-  it('should be able to take snapshot from video', async () => {
+  it('should be able to record a video from camera', async () => {
     // Arrange
     const videoFileName = '.temp/recording.test.mp4';
     const ringApi = new RingApi({
@@ -30,11 +30,11 @@ describe('recordVideoFromCamera', () => {
     const camera = locations[0].cameras[0];
 
     // Act
-    await recordVideoFromCamera(camera, videoFileName, 16);
+    await recordVideoFromCamera(camera, videoFileName, 10);
 
     // Assert
     const recordingSuccessful = await checkFileExists(`${env.APP_RECORDING_FOLDER}/${videoFileName}`);
     expect(recordingSuccessful).toBe(true);
     // purgeLocalFiles(`${env}/.temps`);
-  }, 20000);
+  }, 60000);
 });

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { WebClient } from '@slack/web-api';
+import { logger } from "../logHelper/index.mjs";
 
 const { env } = process;
 
@@ -17,9 +18,10 @@ export async function sendSlackNotificationWithSnapshot(message, snapShotFileNam
 
 export async function sendSimpleSlackNotification(message) {
     try {
-        const res = await slackClient.chat.postMessage({ channelId: env.SLACK_CHANNEL_ID, message });
-        console.log('SlackMessage sent: ', res.ts);
+        const slackClient = new WebClient(env.SLACK_BOT_TOKEN);
+        const res = await slackClient.chat.postMessage({ channel: env.SLACK_CHANNEL_ID, text: message });
+        logger.info('SlackMessage sent: ', res.ts);
     } catch (error) {
-        console.error('Error sending slack message: ', error);
+        logger.error('Error sending slack message: ', error);
     }
 }

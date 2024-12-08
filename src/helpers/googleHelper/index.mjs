@@ -1,6 +1,7 @@
 import "dotenv/config";
 import {google} from 'googleapis';
 import readline from 'readline';
+import { logger } from "../logHelper/index.mjs";
 
 const { env } = process;
 const oauth2Client = new google.auth.OAuth2(
@@ -15,7 +16,7 @@ const authUrl = oauth2Client.generateAuthUrl({
   scope: ['https://www.googleapis.com/auth/drive.file']
 });
 
-console.log('Authorize this app by visiting this URL: ', authUrl);
+logger.info('Authorize this app by visiting this URL: ', authUrl);
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -25,11 +26,11 @@ const rl = readline.createInterface({
 rl.question('Enter the code from that page here: ', (code) => {
   oauth2Client.getToken(code, (err, token) => {
     if (err) {
-      console.error('Error retrieving access token', err);
+      logger.error('Error retrieving access token', err);
       return;
     }
     oauth2Client.setCredentials(token);
-    console.log('Token retrieved and stored:', token);
+    logger.info('Token retrieved and stored:', token);
     rl.close();
   });
 });

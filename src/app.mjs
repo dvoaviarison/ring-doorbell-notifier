@@ -4,10 +4,16 @@ import { readFile, writeFile } from "fs";
 import { promisify } from "util";
 import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { handleRingNotification } from "./ringNotificationHandler/index.mjs";
+import { stopProcessInMs } from "./helpers/processHelper/index.mjs";
+import { logger } from "./helpers/logHelper/index.mjs";
 
 const { env } = process;
 
 export async function run() {
+    if (env.APP_AUTO_STOP_MS){
+        stopProcessInMs(env.APP_AUTO_STOP_MS);
+    }
+
     const ringApi = new RingApi({
         refreshToken: env.RING_REFRESH_TOKEN,
     });
@@ -15,7 +21,7 @@ export async function run() {
     // Keep token fresh
     ringApi.onRefreshTokenUpdated.subscribe(
         async ({ newRefreshToken, oldRefreshToken }) => {
-            console.log("Refresh Token Updated");
+            logger.info("Refresh Token Updated");
             if (!oldRefreshToken) {
                 return;
             }
@@ -36,11 +42,11 @@ export async function run() {
             camera.onNewNotification.subscribe(async (notif) => {
 
                 // Handle Notification
-                handleRingNotification(camera, notif);
+                await handleRingNotification(camera, notif);
 
                 // Purge
                 purgeLocalFiles();
             });
         });
-    });
+    }); 
 } 

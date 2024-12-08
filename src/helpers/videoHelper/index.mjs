@@ -1,5 +1,6 @@
 import "dotenv/config";
 import ffmpeg from 'fluent-ffmpeg';
+import { logger } from "../logHelper/index.mjs";
 
 const { env } = process;
 
@@ -16,7 +17,7 @@ export async function takeSnapshotFromVideo(videoFileName, timeSecond, snapshotF
                 resolve(true);
             })
             .on('error', (err) => {
-                console.log(err);
+                logger.info(err);
                 resolve(false);
             });
     });

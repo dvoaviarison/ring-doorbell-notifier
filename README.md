@@ -9,6 +9,13 @@ Simple nodejs app that will let you skip the expensive subscription and
 - The hardest part is to fill in the variables in `.env.sample` then rename it to `.env`.
 - Run `npm install` then `npm start`
 
+## How to run as a service using forever
+- Install forever: `npm install forever -g`
+- Run `npm run start-service`
+- To stop the process: `npm run stop-service`
+- To view running services: `npm run list-services`
+By running as a service, the app would auto-restart in case of crash.
+
 ## How to run in docker (need docker desktop installed)
 - Like the above, fill in the variables in `.env.sample` then rename it to `.env`.
 - Run the following

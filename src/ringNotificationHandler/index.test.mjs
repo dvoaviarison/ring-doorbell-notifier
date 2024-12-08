@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { RingApi } from 'ring-client-api';
 import { handleRingNotification } from './index.mjs';
+import { logger } from '../helpers/logHelper/index.mjs';
 
 const { env } = process;
 
@@ -18,7 +19,7 @@ describe('handleRingNotification', () => {
       await handleRingNotification(camera, notif);
 
       // Assert
-      console.log("Integration test complete");
+      logger.info("Integration test complete");
     }, 30000);
   });
   
