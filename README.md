@@ -25,11 +25,15 @@ docker build -t ring-doorbell-notifier .
 docker run -d --restart always ring-doorbell-notifier 
 ```
 
+## How to get together-ai apikey
+- Create an account with [together-ai](https://api.together.ai)
+
 ## How to install ollama vision models
 - Install ollama: [Here](https://ollama.com/download/mac)
 - Install the vision model of your choice
 ```sh
-ollama run llava:7b
-ollama run llama3.2-vision
+# Choose one of these
+ollama pull llava:7b # fastest response but not always the best
+ollama pull llama3.2-vision # best response but slowest
 ```
 - Make sure you enable AI and set the model name in `.env` file

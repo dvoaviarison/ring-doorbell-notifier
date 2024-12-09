@@ -5,7 +5,7 @@ import { uploadFileToMega } from '../helpers/uploadHelper/index.mjs'
 import { formatMessage } from '../helpers/messageHelper/index.mjs';
 import { takeSnapshotFromVideo } from '../helpers/videoHelper/index.mjs';
 import { logger } from "../helpers/logHelper/index.mjs";
-import { getSnapshotDescription } from "../helpers/aiHelper/index.mjs";
+import { getAIPoweredSnapshotDescription } from "../helpers/aiHelper/index.mjs";
 
 const { env } = process;
 const recordingDurationSec = 10;
@@ -39,7 +39,7 @@ export async function handleRingNotification(camera, notif) {
             await sendSlackNotificationWithSnapshot(message, snapshotFileName);
             logger.info('Notification sent with snapshot');
             if (env.APP_ENABLE_AI){
-                const snapshotDesc = await getSnapshotDescription(snapshotFileName, camera.name);
+                const snapshotDesc = await getAIPoweredSnapshotDescription(snapshotFileName, camera.name);
                 await sendSimpleSlackNotification(snapshotDesc);
             }
         } else {
