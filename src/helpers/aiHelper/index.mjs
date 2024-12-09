@@ -68,6 +68,8 @@ export async function getSnapshotDescriptionViaTogetherAI(fileName, cameraName) 
         } else {
             logger.info('No description available for the image.');
         }
+
+        return response;
     } catch (error) {
         logger.info('Error describing image:', error);
     }
