@@ -1,10 +1,10 @@
-import { getSnapshotDescription, getSnapshotDescriptionViaTogetherAI } from './index.mjs';
+import { getSnapshotDescriptionViaOllama, getSnapshotDescriptionViaTogetherAI } from './index.mjs';
 import { logger } from '../logHelper/index.mjs';
 
-describe('getSnapshotDescription', () => {
+describe('getSnapshotDescriptionViaOllama', () => {
     test('should describe the snapshot', async () => {
         // Act
-        const result = await getSnapshotDescription('snapshot.test.png', 'Front Door');
+        const result = await getSnapshotDescriptionViaOllama('snapshot.test.png', 'Front Door');
 
         // Assert
         logger.info(result);
