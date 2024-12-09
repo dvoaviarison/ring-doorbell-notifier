@@ -24,6 +24,11 @@ By running as a service, the app would auto-restart in case of crash.
 docker build -t ring-doorbell-notifier .
 docker run -d --restart always ring-doorbell-notifier 
 ```
+- To create a linux build and push to dockerhub. You then can deploy it in a free host like [railway](https://railway.app/dashboard). Replace your username and the tag (e.g. v1.2.0)
+```sh
+docker buildx build --platform linux/amd64 -t username/ring-doorbell-notifier:tag .
+docker push username/ring-doorbell-notifier:tag
+```
 
 ## How to get together-ai apikey
 - Create an account with [together-ai](https://api.together.ai)
