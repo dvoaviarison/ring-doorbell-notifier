@@ -58,7 +58,7 @@ app.post('/update-user-prompt', (req, res) => {
 app.post('/capture', async (req, res) => {
   try {
     logger.info('Capture on demand request received');
-    const { cameraName } = req.body;
+    const cameraName = req.query.cameraName ?? req.body.cameraName;
     const locations = await ringApi.getLocations();
     const camera = findCamera(locations, cameraName);
     const notif = { android_config: { body: `There is a motion at your ${camera.name}` } };
