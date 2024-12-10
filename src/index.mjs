@@ -29,6 +29,16 @@ function updateEnvFile(req, res) {
   }
 }
 
+async function capture(cameraName) {
+  logger.info(`Capture on demand request received for ${cameraName}`);
+  const locations = await ringApi.getLocations();
+  const camera = findCamera(locations, cameraName);
+  const notif = { android_config: { body: `There is a motion at your ${camera.name}` } };
+  const notification = await handleRingNotification(camera, notif);
+  purgeLocalFiles();
+  return notification;
+}
+
 // Start the main function
 logger.info('Starting the service');
 const ringApi = getLoggedInRingApi();
@@ -55,26 +65,16 @@ app.post('/update-user-prompt', (req, res) => {
   updateEnvFile({ key: 'APP_AI_USER_PROMPT', value }, res);
 });
 
-// POST endpoint to force notification
+// POST endpoint to force notification for slack
 app.post('/capture', async (req, res) => {
   try {
     const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
-    const message = `Capture on demand request received for ${cameraName}`;
-
-    logger.info(message);
     if (req.body.channel_id) {
-      await sendSimpleSlackNotification(message, req.body.channel_id);
+      await sendSimpleSlackNotification(`Capture on demand request received for ${cameraName}`, req.body.channel_id);
     }
     
-    const locations = await ringApi.getLocations();
-    const camera = findCamera(locations, cameraName);
-    const notif = { android_config: { body: `There is a motion at your ${camera.name}` } };
-    const notification = await handleRingNotification(camera, notif);
-    purgeLocalFiles();
-
-    
-
-    res.status(200).send(`Capture on demand complete: ${notification}`);
+    capture(cameraName);
+    res.status(200).send('Capture on demand complete. Notification will be sent soon!')
   } catch (error) {
     res.status(500).send(error.stack);
   }
