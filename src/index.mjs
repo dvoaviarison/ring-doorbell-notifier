@@ -5,6 +5,7 @@ import { updateEnvValue } from './helpers/fileHelper/index.mjs';
 import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
 import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
+import { sendSimpleSlackNotification } from './helpers/notificationHelper/index.mjs';
 
 import express from 'express';
 
@@ -57,13 +58,19 @@ app.post('/update-user-prompt', (req, res) => {
 // POST endpoint to force notification
 app.post('/capture', async (req, res) => {
   try {
-    logger.info('Capture on demand request received');
-    const cameraName = req.query.cameraName ?? req.body.cameraName;
+    const message = 'Capture on demand request received';
+    logger.info(message);
+    if (req.body.channel_id) {
+      await sendSimpleSlackNotification(message, req.body.channel_id);
+    }
+    const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
     const locations = await ringApi.getLocations();
     const camera = findCamera(locations, cameraName);
     const notif = { android_config: { body: `There is a motion at your ${camera.name}` } };
     const notification = await handleRingNotification(camera, notif);
     purgeLocalFiles();
+
+    
 
     res.status(200).send(`Capture on demand complete: ${notification}`);
   } catch (error) {
