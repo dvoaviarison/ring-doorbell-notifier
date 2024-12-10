@@ -58,12 +58,14 @@ app.post('/update-user-prompt', (req, res) => {
 // POST endpoint to force notification
 app.post('/capture', async (req, res) => {
   try {
-    const message = 'Capture on demand request received';
+    const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
+    const message = `Capture on demand request received for ${cameraName}`;
+
     logger.info(message);
     if (req.body.channel_id) {
       await sendSimpleSlackNotification(message, req.body.channel_id);
     }
-    const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
+    
     const locations = await ringApi.getLocations();
     const camera = findCamera(locations, cameraName);
     const notif = { android_config: { body: `There is a motion at your ${camera.name}` } };
