@@ -61,7 +61,7 @@ app.post('/update-slack-channel', (req, res) => {
 
 // POST endpoint to update slack channel ID
 app.post('/update-user-prompt', (req, res) => {
-  const { value } = req.body;
+  const { value } = req.body ?? req.text;
   updateEnvFile({ key: 'APP_AI_USER_PROMPT', value }, res);
 });
 
