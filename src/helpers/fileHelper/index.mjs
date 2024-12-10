@@ -6,6 +6,24 @@ import { logger } from "../logHelper/index.mjs";
 
 const { env } = process;
 
+export function updateEnvValue(key, value, envPath = './.env') {
+    const envConfig = fs.readFileSync(envPath, 'utf-8');
+
+    // Split lines and update the value
+    const newEnvConfig = envConfig.split('\n').map(line => {
+        const [currentKey, _] = line.split('=');
+        if (currentKey === key) {
+            return `${key}='${value}'`;
+        }
+        return line;
+    }).join('\n');
+
+    // Write updated values back to the .env file
+    fs.writeFileSync(envPath, newEnvConfig, 'utf-8');
+    process.env[key] = value;
+    console.log(`Updated ${key} to ${value}`);
+}
+
 export function purgeLocalFiles(
     callback = () => {},
     folderPath = env.APP_RECORDING_FOLDER, 

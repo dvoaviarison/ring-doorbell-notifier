@@ -24,7 +24,7 @@ export async function getSnapshotDescriptionViaTogetherAI(fileName, cameraName) 
     const imagePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
     logger.info('Using Together AI to get snapshot description...');
     try {
-        const instruction = `This a snapshot from my ${cameraName}. In one short sentence, tell me what is in my ${cameraName}?`
+        const instruction = env.APP_AI_USER_PROMPT.replace(/%cameraName%/g, cameraName);
         const base64Image = encodeImage(imagePath);
         const stream = await together.chat.completions.create({
             messages: [
