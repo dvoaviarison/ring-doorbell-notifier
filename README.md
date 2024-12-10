@@ -1,5 +1,5 @@
 # Ring Doorbell Notifier
-Simple, LLM/AI powered (if [ollama](https://ollama.com) installed) nodejs app that will let you skip the expensive subscription and 
+Simple, LLM/AI powered ([ollama](https://ollama.com) or [together-ai](https://api.together.ai)) nodejs app that will let you skip the expensive subscription and 
 - Record your motion videos/snapshots directly on your **Mega drive**. Mega because it is the easiest and offers the best amount of free storage
 - Send notification to **slack** with link to these videos when a motion is detected.
 - Use AI to describe what your camera is seeing
@@ -24,7 +24,7 @@ By running as a service, the app would auto-restart in case of crash.
 docker build -t ring-doorbell-notifier .
 docker run -d --restart always ring-doorbell-notifier 
 ```
-- To create a linux build and push to dockerhub. You then can deploy it in a free host like [railway](https://railway.app/dashboard). Replace your username and the tag (e.g. v1.2.0)
+- To create a linux build and push to dockerhub. You then can deploy it in a free host like [railway](https://railway.app/dashboard) or [render](https://dashboard.render.com). Replace your username and the tag (e.g. v1.2.0)
 ```sh
 docker buildx build --platform linux/amd64 -t username/ring-doorbell-notifier:tag .
 docker push username/ring-doorbell-notifier:tag

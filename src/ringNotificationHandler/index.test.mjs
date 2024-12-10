@@ -1,16 +1,14 @@
 import 'dotenv/config';
-import { RingApi } from 'ring-client-api';
 import { handleRingNotification } from './index.mjs';
 import { logger } from '../helpers/logHelper/index.mjs';
+import { getLoggedInRingApi } from '../helpers/ringHelper/index.mjs';
 
 const { env } = process;
 
 describe('handleRingNotification', () => {
     it('should be able to record, snapshot, upload and slack notify', async () => {
       // Arrange
-      const ringApi = new RingApi({
-        refreshToken: env.RING_REFRESH_TOKEN,
-      });
+      const ringApi = getLoggedInRingApi();;
       const locations = await ringApi.getLocations();
       const camera = locations[0].cameras[0];
       const notif = { android_config: { body: `There is a motion at your ${camera.name}`} };

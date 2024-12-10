@@ -26,13 +26,13 @@ export async function handleRingNotification(camera, notif) {
     logger.info('Taking snapshot...');
     const snapshotFileName = `${camera.name}-${getFormattedDateTime()}.jpg`;
     const hasSnapshot = await takeSnapshotFromVideo(videoFileName, snapshotFromVideoSecond, snapshotFileName);
-    logger.info('Snapshot taken')
+    logger.info('Snapshot taken');
 
     // Send notification
     if (videoUrl) {
         logger.info('Sending Notification...');
         const liveUrl = `https://account.ring.com/account/dashboard?lv_d=${camera.id}`;
-        var message = formatMessage(
+        const message = formatMessage(
             hasSnapshot && env.APP_ENABLE_AI ? await getAIPoweredSnapshotDescription(snapshotFileName, camera.name) : notif.android_config.body,
             videoUrl ? videoUrl : liveUrl);
         if (hasSnapshot) {
@@ -42,5 +42,7 @@ export async function handleRingNotification(camera, notif) {
             await sendSimpleSlackNotification(message);
             logger.info('Notification sent without snapshot');
         }
+
+        return message;
     }
 }

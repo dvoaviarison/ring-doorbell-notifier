@@ -1,5 +1,4 @@
 import "dotenv/config";
-import { RingApi } from 'ring-client-api';
 import { readFile, writeFile } from "fs";
 import { promisify } from "util";
 import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
@@ -9,14 +8,10 @@ import { logger } from "./helpers/logHelper/index.mjs";
 
 const { env } = process;
 
-export async function run() {
+export async function run(ringApi) {
     if (env.APP_AUTO_STOP_MS){
         stopProcessInMs(env.APP_AUTO_STOP_MS);
     }
-
-    const ringApi = new RingApi({
-        refreshToken: env.RING_REFRESH_TOKEN,
-    });
 
     // Keep token fresh
     ringApi.onRefreshTokenUpdated.subscribe(
