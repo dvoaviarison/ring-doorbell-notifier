@@ -15,17 +15,17 @@ const port = env.APP_SERVER_PORT;
 
 function updateEnvFile(req, res) {
   const { key, value } = req;
-    if (!value) {
-        return res.status(400).send('Value is required');
-    }
+  if (!value) {
+    return res.status(400).send('Value is required');
+  }
 
-    try {
-        updateEnvValue(key, value);
-        res.status(200).send(`Updated ${key} to ${value}`);
-    } catch (error) {
-        console.error('Error updating .env file:', error);
-        res.status(500).send('An error occurred while updating the .env file');
-    }
+  try {
+    updateEnvValue(key, value);
+    res.status(200).send(`Updated ${key} to ${value}`);
+  } catch (error) {
+    logger.error('Error updating .env file:', error);
+    res.status(500).send('An error occurred while updating the .env file');
+  }
 }
 
 // Start the main function
@@ -57,15 +57,16 @@ app.post('/update-user-prompt', (req, res) => {
 // POST endpoint to force notification
 app.post('/capture', async (req, res) => {
   try {
+    logger.info('Capture on demand request received');
     const { cameraName } = req.body;
     const locations = await ringApi.getLocations();
     const camera = findCamera(locations, cameraName);
     const notif = { android_config: { body: `There is a motion at your ${camera.name}` } };
     const notification = await handleRingNotification(camera, notif);
     purgeLocalFiles();
-  
-    res.status(200).send(`Capture complete: ${notification}`);
-  } catch (error){
+
+    res.status(200).send(`Capture on demand complete: ${notification}`);
+  } catch (error) {
     res.status(500).send(error.stack);
   }
 });

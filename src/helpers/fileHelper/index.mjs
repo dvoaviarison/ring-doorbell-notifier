@@ -21,12 +21,12 @@ export function updateEnvValue(key, value, envPath = './.env') {
     // Write updated values back to the .env file
     fs.writeFileSync(envPath, newEnvConfig, 'utf-8');
     process.env[key] = value;
-    console.log(`Updated ${key} to ${value}`);
+    logger.info(`Updated ${key} to ${value}`);
 }
 
 export function purgeLocalFiles(
-    callback = () => {},
-    folderPath = env.APP_RECORDING_FOLDER, 
+    callback = () => { },
+    folderPath = env.APP_RECORDING_FOLDER,
     extensions = ['.jpg', '.mp4']) {
     fs.readdir(folderPath, (err, files) => {
         if (err) {
