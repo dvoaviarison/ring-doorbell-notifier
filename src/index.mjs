@@ -47,8 +47,19 @@ await run(ringApi);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Home page :)
+app.get('/', (req, res) => {
+  res.send(`Welcome to 🅁🄸🄽🄶 🄽🄾🅃🄸🄵🄸🄴🅁`);
+});
+
 // Healthcheck endpoint
 app.get('/health', (req, res) => {
+  logger.info(`${req.method} - ${req.url}`);
+  res.send('Healthy');
+});
+
+// Healthcheck via slack
+app.post('/health', (req, res) => {
   logger.info(`${req.method} - ${req.url}`);
   res.send('Healthy');
 });
