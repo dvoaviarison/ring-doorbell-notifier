@@ -1,10 +1,10 @@
 # Ring Doorbell Notifier
-Simple, LLM/AI powered ([ollama](https://ollama.com) or [together-ai](https://api.together.ai)) nodejs app that will let you skip the expensive subscription and 
+Simple, LLM/AI powered ([ollama](https://ollama.com), [together-ai](https://api.together.ai) or [Gemini](https://ai.google.dev/gemini-api/docs/models/gemini)) nodejs app that will let you skip the expensive subscription and 
 - Record your motion videos/snapshots directly on your **Mega drive**. Mega because it is the easiest and offers the best amount of free storage
 - Send notification to **slack** with link to these videos when a motion is detected.
 - Use AI to describe what your camera is seeing
 - With this you can enjoy pretty much the same premium features of ring doorbells for totally FREE.
-<img src="./docs/imgs/slack-notif.jpeg" alt="notif" width="400"/>
+<img src="./docs/imgs/together.jpeg" alt="notif" width="400"/>
 
 ## How to run this locally
 - The hardest part is to fill in the variables in `.env.sample` then rename it to `.env`.

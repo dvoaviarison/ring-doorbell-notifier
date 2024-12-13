@@ -1,10 +1,12 @@
 import { sendSlackNotificationWithSnapshot } from './index.mjs';
+import { getAIPoweredSnapshotDescription } from '../aiHelper/index.mjs';
 
 describe('sendSlackNotificationWithSnapshot', () => {
   it('should upload a file to Slack', async () => {
     // Arrange
-    const message = '@channel: There is motion at your Front Door. : <http://google.com|View recording>';
     const snapShotFileName = 'snapshot.test.png';
+    var description = await getAIPoweredSnapshotDescription(snapShotFileName, 'Front Door');
+    const message = `@channel: ${description} <http://google.com|View recording>`;
 
     // Act
     var res = await sendSlackNotificationWithSnapshot(message, snapShotFileName);
