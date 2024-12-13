@@ -12,7 +12,7 @@ describe('takeSnapshotFromVideo', () => {
     const snapshotFileName = 'snapshot.test.png';
 
     // Act
-    var gotSnapshot = await takeSnapshotFromVideo(videoFileName, 3, snapshotFileName);
+    var gotSnapshot = await takeSnapshotFromVideo(videoFileName, snapshotFileName);
 
     // Assert
     expect(gotSnapshot).toBe(true);

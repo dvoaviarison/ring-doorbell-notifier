@@ -9,7 +9,6 @@ import { getAIPoweredSnapshotDescription } from "../helpers/aiHelper/index.mjs";
 
 const { env } = process;
 const recordingDurationSec = 10;
-const snapshotFromVideoSecond = 2;
 
 export async function handleRingNotification(camera, notif) {
     // Record Video
@@ -25,7 +24,7 @@ export async function handleRingNotification(camera, notif) {
     // Take a snapshot
     logger.info('Taking snapshot...');
     const snapshotFileName = `${camera.name}-${getFormattedDateTime()}.jpg`;
-    const hasSnapshot = await takeSnapshotFromVideo(videoFileName, snapshotFromVideoSecond, snapshotFileName);
+    const hasSnapshot = await takeSnapshotFromVideo(videoFileName, snapshotFileName);
     logger.info('Snapshot taken');
 
     // Send notification

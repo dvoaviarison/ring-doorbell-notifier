@@ -4,12 +4,12 @@ import { logger } from "../logHelper/index.mjs";
 
 const { env } = process;
 
-export async function takeSnapshotFromVideo(videoFileName, timeSecond, snapshotFileName) {  
+export async function takeSnapshotFromVideo(videoFileName, snapshotFileName) {  
     const videoFilePath = `${env.APP_RECORDING_FOLDER}/${videoFileName}`;
     const res = await new Promise((resolve) => {
         ffmpeg(videoFilePath)
             .screenshots({
-                timestamps: [timeSecond],
+                timestamps: [env.APP_SNAPSHOT_TIME_SEC],
                 filename: snapshotFileName,
                 folder: env.APP_RECORDING_FOLDER
             })
