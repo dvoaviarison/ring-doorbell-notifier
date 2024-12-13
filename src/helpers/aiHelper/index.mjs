@@ -2,9 +2,13 @@ import "dotenv/config";
 import ollama from 'ollama';
 import Together from "together-ai";
 import * as fs from 'fs';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from "../logHelper/index.mjs";
 
 const { env } = process;
+
+const sysPrompt = `In one short sentence, tell me what is in the given camera snapshot.
+No need to describe the door, poles or the walls, only the potentially moving entities, object, human or animal`
 
 function encodeImage(imagePath) {
     const imageFile = fs.readFileSync(imagePath);
@@ -12,10 +16,13 @@ function encodeImage(imagePath) {
 }
 
 export async function getAIPoweredSnapshotDescription(fileName, cameraName){
-    if (env.APP_AI_TYPE === 'together-ai'){
-        return await getSnapshotDescriptionViaTogetherAI(fileName, cameraName);
-    } else {
-        return await getSnapshotDescriptionViaOllama(fileName, cameraName);
+    switch (env.APP_AI_TYPE) {
+        case 'together-ai':
+            return await getSnapshotDescriptionViaTogetherAI(fileName, cameraName);
+        case 'gemini':
+            return await getSnapshotDescriptionViaGemini(fileName, cameraName);
+        default:
+            return await getSnapshotDescriptionViaOllama(fileName, cameraName);
     }
 }
 
@@ -30,7 +37,7 @@ export async function getSnapshotDescriptionViaTogetherAI(fileName, cameraName) 
             messages: [
                 {
                     "role": "system",
-                    "content": "In one short sentence, tell me what is in the given camera snapshot.\nNo need to describe the door, poles or the walls, only the potentially moving entities, object, human or animal"
+                    "content": sysPrompt
                 },
                 {
                     "role": "user",
@@ -48,7 +55,7 @@ export async function getSnapshotDescriptionViaTogetherAI(fileName, cameraName) 
                     ]
                 }
             ],
-            model: env.APP_AI_VISION_MODEL,
+            model: env.APP_AI_TOGETHER_MODEL,
             max_tokens: null,
             temperature: 0.7,
             top_p: 0.7,
@@ -80,7 +87,7 @@ export async function getSnapshotDescriptionViaOllama(fileName, cameraName) {
     const imagePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
     logger.info('Using AI to get snapshot description...');
     const res = await ollama.chat({
-        model: env.APP_AI_VISION_MODEL,
+        model: env.APP_AI_OLLAMA_MODEL,
         messages: [{
             role: 'user',
             content: `This a snapshot from my ${cameraName}. 
@@ -93,5 +100,30 @@ export async function getSnapshotDescriptionViaOllama(fileName, cameraName) {
     var description = res?.message?.content;
     logger.info(`AI Snapshot description ready: ${description}`);
 
+    return description;
+}
+
+export async function getSnapshotDescriptionViaGemini(fileName, cameraName) {
+    const genAI = new GoogleGenerativeAI(env.APP_AI_GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
+    const imagePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
+    const base64Image = encodeImage(imagePath);
+    const instruction = env.APP_AI_USER_PROMPT.replace(/%cameraName%/g, cameraName);
+
+    const imageResp = await fetch(`data:image/png;base64,${base64Image}`)
+        .then((response) => response.arrayBuffer());
+
+    const result = await model.generateContent([
+        {
+            inlineData: {
+                data: Buffer.from(imageResp).toString("base64"),
+                mimeType: "image/jpeg",
+            },
+        },
+        sysPrompt,
+        instruction
+    ]);
+
+    const description = result.response.text();
     return description;
 }
