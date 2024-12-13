@@ -5,7 +5,6 @@ import { updateEnvValue } from './helpers/fileHelper/index.mjs';
 import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
 import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
-import { sendSimpleSlackNotification } from './helpers/notificationHelper/index.mjs';
 
 import express from 'express';
 
@@ -92,9 +91,9 @@ app.post('/update-ai-type', (req, res) => {
 app.post('/capture', async (req, res) => {
   try {
     const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
-    if (req.body.channel_id) {
-      await sendSimpleSlackNotification(`Capture on demand request received for ${cameraName}`, req.body.channel_id);
-    }
+    // if (req.body.channel_id) {
+    //   await sendSimpleSlackNotification(`Capture on demand request received for ${cameraName}`, req.body.channel_id);
+    // }
     
     capture(cameraName);
     res.status(200).send('Capture on demand complete. Notification will be sent soon!')
