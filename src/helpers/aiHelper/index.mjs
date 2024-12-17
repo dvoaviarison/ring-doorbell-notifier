@@ -16,20 +16,20 @@ function encodeImage(imagePath) {
     return Buffer.from(imageFile).toString('base64');
 }
 
-export async function getAIPoweredSnapshotDescription(snapshotFileName, videoFileName, cameraName){
+export async function getAIPoweredSnapshotDescription(snapshotFileName, videoFileName, cameraName) {
     switch (env.APP_AI_TYPE) {
         case 'together-ai':
             return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
         case 'gemini':
-            return await getVideoDescriptionViaGemini(videoFileName, cameraName);
+            return await getVideoDescriptionViaGemini(snapshotFileName, videoFileName, cameraName);
         default:
             return await getSnapshotDescriptionViaOllama(snapshotFileName, cameraName);
     }
 }
 
-export async function getSnapshotDescriptionViaTogetherAI(fileName, cameraName) {
+export async function getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName) {
     const together = new Together({ apiKey: env.APP_AI_TOGETHER_API_KEY });
-    const imagePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
+    const imagePath = `${env.APP_RECORDING_FOLDER}/${snapshotFileName}`;
     logger.info('Using Together AI to get snapshot description...');
     try {
         const instruction = env.APP_AI_USER_PROMPT.replace(/%cameraName%/g, cameraName);
@@ -84,8 +84,8 @@ export async function getSnapshotDescriptionViaTogetherAI(fileName, cameraName) 
 }
 
 // This assumes that you have llama3.2-vision installed locally
-export async function getSnapshotDescriptionViaOllama(fileName, cameraName) {
-    const imagePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
+export async function getSnapshotDescriptionViaOllama(snapshotFileName, cameraName) {
+    const imagePath = `${env.APP_RECORDING_FOLDER}/${snapshotFileName}`;
     logger.info('Using AI to get snapshot description...');
     const res = await ollama.chat({
         model: env.APP_AI_OLLAMA_MODEL,
@@ -104,56 +104,66 @@ export async function getSnapshotDescriptionViaOllama(fileName, cameraName) {
     return description;
 }
 
-export async function getSnapshotDescriptionViaGemini(fileName, cameraName) {
-    const genAI = new GoogleGenerativeAI(env.APP_AI_GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
-    const imagePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
-    const base64Image = encodeImage(imagePath);
-    const instruction = env.APP_AI_USER_PROMPT.replace(/%cameraName%/g, cameraName);
-
-    const imageResp = await fetch(`data:image/png;base64,${base64Image}`)
-        .then((response) => response.arrayBuffer());
-
-    const result = await model.generateContent([
-        {
-            inlineData: {
-                data: Buffer.from(imageResp).toString("base64"),
-                mimeType: "image/jpeg",
+export async function getSnapshotDescriptionViaGemini(snapshotFileName, cameraName) {
+    try {
+        const genAI = new GoogleGenerativeAI(env.APP_AI_GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
+        const imagePath = `${env.APP_RECORDING_FOLDER}/${snapshotFileName}`;
+        const base64Image = encodeImage(imagePath);
+        const instruction = env.APP_AI_USER_PROMPT.replace(/%cameraName%/g, cameraName);
+    
+        const imageResp = await fetch(`data:image/png;base64,${base64Image}`)
+            .then((response) => response.arrayBuffer());
+    
+        const result = await model.generateContent([
+            {
+                inlineData: {
+                    data: Buffer.from(imageResp).toString("base64"),
+                    mimeType: "image/jpeg",
+                },
             },
-        },
-        `Your role is to tell me what you see. Only focus on the entities that are susceptible to be in motion. If none, then tell me there is nothing. Do not say snapshot. ${instruction}`
-    ]);
-
-    const description = result.response.text();
-    return description;
+            `Your role is to tell me what you see. Only focus on the entities that are susceptible to be in motion. If none, then tell me there is nothing. Do not say snapshot. ${instruction}`
+        ]);
+    
+        const description = result.response.text();
+        return description;
+    } catch (error){
+        logger.error(`Failed to get snapshot description from gemini, falling back. ${error}`);
+        return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
+    }
 }
 
-export async function getVideoDescriptionViaGemini(fileName, cameraName) {
-    const genAI = new GoogleGenerativeAI(env.APP_AI_GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
-    const file = await uploadToGemini(fileName);
+export async function getVideoDescriptionViaGemini(snapshotFileName, videoFileName, cameraName) {
+    try {
+        const genAI = new GoogleGenerativeAI(env.APP_AI_GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
+        const file = await uploadToGemini(videoFileName);
 
-    const result = await model.generateContent([
-        {
-            fileData: {
-                fileUri: file.uri,
-                mimeType: file.mimeType,
+        const result = await model.generateContent([
+            {
+                fileData: {
+                    fileUri: file.uri,
+                    mimeType: file.mimeType,
+                },
             },
-        },
-        `This is from my ${cameraName} camera. In one sentence, what did you see. Please focus only on the object, person or animal in motion. Please mention the camera name and make it sound like a notification with no introduction, no 'okay'`
-    ]);
+            `This is from my ${cameraName} camera. In one sentence, what did you see. Please focus only on the object, person or animal in motion. Please mention ${cameraName} and make it sound like a notification with no introduction, no 'okay'`
+        ]);
 
-    const description = result.response.text();
-    logger.info(`Gemini video description ready: ${description}`);
-    return description;
+        const description = result.response.text();
+        logger.info(`Gemini video description ready: ${description}`);
+        return description;
+    } catch (error) {
+        logger.error(`Failed to get video description from gemini, falling back. ${error}`);
+        return await getSnapshotDescriptionViaGemini(snapshotFileName, cameraName);
+    }
 }
 
 async function uploadToGemini(fileName, mimeType = "video/mp4") {
     const filePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
     const fileManager = new GoogleAIFileManager(env.APP_AI_GEMINI_API_KEY);
     const uploadResult = await fileManager.uploadFile(filePath, {
-      mimeType,
-      displayName: fileName,
+        mimeType,
+        displayName: fileName,
     });
     let file = uploadResult.file;
     logger.info(`Uploaded file ${file.displayName} as: ${file.name} to gemini`);
