@@ -4,6 +4,7 @@ import Together from "together-ai";
 import * as fs from 'fs';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from "../logHelper/index.mjs";
+import { GoogleAIFileManager } from "@google/generative-ai/server";
 
 const { env } = process;
 
@@ -15,14 +16,14 @@ function encodeImage(imagePath) {
     return Buffer.from(imageFile).toString('base64');
 }
 
-export async function getAIPoweredSnapshotDescription(fileName, cameraName){
+export async function getAIPoweredSnapshotDescription(snapshotFileName, videoFileName, cameraName){
     switch (env.APP_AI_TYPE) {
         case 'together-ai':
-            return await getSnapshotDescriptionViaTogetherAI(fileName, cameraName);
+            return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
         case 'gemini':
-            return await getSnapshotDescriptionViaGemini(fileName, cameraName);
+            return await getVideoDescriptionViaGemini(videoFileName, cameraName);
         default:
-            return await getSnapshotDescriptionViaOllama(fileName, cameraName);
+            return await getSnapshotDescriptionViaOllama(snapshotFileName, cameraName);
     }
 }
 
@@ -125,4 +126,50 @@ export async function getSnapshotDescriptionViaGemini(fileName, cameraName) {
 
     const description = result.response.text();
     return description;
+}
+
+export async function getVideoDescriptionViaGemini(fileName, cameraName) {
+    const genAI = new GoogleGenerativeAI(env.APP_AI_GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
+    const file = await uploadToGemini(fileName);
+
+    const result = await model.generateContent([
+        {
+            fileData: {
+                fileUri: file.uri,
+                mimeType: file.mimeType,
+            },
+        },
+        `This is from my ${cameraName} camera. In one sentence, what did you see. Please focus only on the object, person or animal in motion. Please mention the camera name and make it sound like a notification with no introduction, no 'okay'`
+    ]);
+
+    const description = result.response.text();
+    logger.info(`Gemini video description ready: ${description}`);
+    return description;
+}
+
+async function uploadToGemini(fileName, mimeType = "video/mp4") {
+    const filePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
+    const fileManager = new GoogleAIFileManager(env.APP_AI_GEMINI_API_KEY);
+    const uploadResult = await fileManager.uploadFile(filePath, {
+      mimeType,
+      displayName: fileName,
+    });
+    let file = uploadResult.file;
+    logger.info(`Uploaded file ${file.displayName} as: ${file.name} to gemini`);
+
+    logger.info("Waiting for file processing...");
+    while (file.state === "PROCESSING") {
+        process.stdout.write(".")
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+        file = await fileManager.getFile(file.name)
+    }
+
+    if (file.state !== "ACTIVE") {
+        logger.error(`File ${file.name} failed to process`);
+        return;
+    }
+    logger.info("...all files ready");
+
+    return file;
 }

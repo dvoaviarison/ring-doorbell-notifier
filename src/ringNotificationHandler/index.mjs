@@ -32,7 +32,7 @@ export async function handleRingNotification(camera, notif) {
         logger.info('Sending Notification...');
         const liveUrl = `https://account.ring.com/account/dashboard?lv_d=${camera.id}`;
         const message = formatMessage(
-            hasSnapshot && env.APP_ENABLE_AI ? await getAIPoweredSnapshotDescription(snapshotFileName, camera.name) : notif.android_config.body,
+            hasSnapshot && env.APP_ENABLE_AI ? await getAIPoweredSnapshotDescription(snapshotFileName, videoFileName, camera.name) : notif.android_config.body,
             videoUrl ? videoUrl : liveUrl);
         if (hasSnapshot) {
             await sendSlackNotificationWithSnapshot(message, snapshotFileName);
