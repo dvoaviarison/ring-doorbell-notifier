@@ -146,7 +146,7 @@ export async function getVideoDescriptionViaGemini(snapshotFileName, videoFileNa
                     mimeType: file.mimeType,
                 },
             },
-            `This is from my ${cameraName} camera. In one sentence, what did you see. Please focus only on the object, person or animal in motion. Please mention ${cameraName} and make it sound like a notification with no introduction, no 'okay'`
+            `This is from my ${cameraName} camera. In one sentence, what did you see. Please focus only on the object, person or animal in motion. Please make it sound like a notification coming from ${cameraName} with no introduction, no 'okay'`
         ]);
 
         const description = result.response.text();
