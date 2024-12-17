@@ -120,8 +120,7 @@ export async function getSnapshotDescriptionViaGemini(fileName, cameraName) {
                 mimeType: "image/jpeg",
             },
         },
-        sysPrompt,
-        instruction
+        `Your role is to tell me what you see. Only focus on the entities that are susceptible to be in motion. If none, then tell me there is nothing. Do not say snapshot. ${instruction}`
     ]);
 
     const description = result.response.text();
