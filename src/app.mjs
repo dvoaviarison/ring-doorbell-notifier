@@ -9,7 +9,7 @@ import { logger } from "./helpers/logHelper/index.mjs";
 const { env } = process;
 
 export async function run(ringApi) {
-    if (env.APP_AUTO_STOP_MS){
+    if (env.APP_AUTO_STOP_MS) {
         stopProcessInMs(env.APP_AUTO_STOP_MS);
     }
 
@@ -31,17 +31,18 @@ export async function run(ringApi) {
     );
 
     // Subscribe to all cameras' notifications
+    const allCameras = await ringApi.getCameras();
     const locations = await ringApi.getLocations();
-    locations?.forEach(location => {
-        location.cameras?.forEach(camera => {
-            camera.onNewNotification.subscribe(async (notif) => {
+    logger.info(`Found ${allCameras.length} cameras in ${locations.length} locations`);
+    
+    allCameras?.forEach((camera) => {
+        camera.onNewNotification.subscribe(async (notif) => {
 
-                // Handle Notification
-                await handleRingNotification(camera, notif);
+            // Handle Notification
+            await handleRingNotification(camera, notif);
 
-                // Purge
-                purgeLocalFiles();
-            });
+            // Purge
+            purgeLocalFiles();
         });
-    }); 
+    });
 } 

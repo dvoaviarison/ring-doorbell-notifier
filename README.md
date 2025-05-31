@@ -42,3 +42,9 @@ ollama pull llava:7b # fastest response but not always the best
 ollama pull llama3.2-vision # best response but slowest
 ```
 - Make sure you enable AI and set the model name in `.env` file
+
+## Troubleshooting
+Sometimes the notificatoins would not work. Here are some suggestions
+- Re-generate a token using `npx -p ring-client-api ring-auth-cli` and replace its value is .env
+- If the notification from ring is working but not for this app, go to the ring app > Control Center and remove all trusted devices
+- If all notifications stopped even for the ring app, remove the doorbells from your account and add them back
