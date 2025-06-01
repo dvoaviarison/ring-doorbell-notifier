@@ -16,7 +16,7 @@ export async function run(ringApi) {
     // Keep token fresh
     ringApi.onRefreshTokenUpdated.subscribe(
         async ({ newRefreshToken, oldRefreshToken }) => {
-            logger.info("Refresh Token Updated");
+            logger.info(`Refresh Token Updated: ${newRefreshToken}`);
             if (!oldRefreshToken) {
                 return;
             }
