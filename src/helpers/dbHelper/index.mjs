@@ -4,11 +4,11 @@ import { logger } from "../logHelper/index.mjs";
 
 const { env } = process;
 const client = new MongoClient(env.MONGO_DB_CONNECTION_STRING, {
-    serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
-    }
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  }
 });
 const dbName = env.MONGO_DB_NAME || 'ringnotifier';
 const configCollectionName = env.MONGO_DB_COLLECTION_NAME || 'configuration';
@@ -20,7 +20,7 @@ export async function getRefreshToken() {
         const collection = db.collection(configCollectionName);
         const refreshToken = await collection.findOne({ key: 'refreshToken' });
         if (refreshToken) {
-            logger.info(`Refresh token found: ${refreshToken.value}`);
+            logger.info(`Refresh token found: ${refreshToken.value.substring(0, 10)}...`);
             return refreshToken.value;
         } else {
             logger.warn('No refresh token found in the database.');
@@ -57,4 +57,3 @@ export async function storeRefreshToken(refreshToken) {
     }
 }
 
-storeRefreshToken("your_refresh_token_here");
