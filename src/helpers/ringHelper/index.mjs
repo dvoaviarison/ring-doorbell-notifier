@@ -1,11 +1,10 @@
-import "dotenv/config";
 import { RingApi } from 'ring-client-api';
+import { getRefreshToken } from "../dbHelper/index.mjs";
 
-const { env } = process;
-
-export function getLoggedInRingApi(){
+export async function getLoggedInRingApi(){
+    const refreshToken = await getRefreshToken();
     const ringApi = new RingApi({
-        refreshToken: env.RING_REFRESH_TOKEN,
+        refreshToken: refreshToken,
     });
 
     return ringApi;

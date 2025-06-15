@@ -5,6 +5,7 @@ import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { handleRingNotification } from "./ringNotificationHandler/index.mjs";
 import { stopProcessInMs } from "./helpers/processHelper/index.mjs";
 import { logger } from "./helpers/logHelper/index.mjs";
+import { storeRefreshToken } from "./helpers/dbHelper/index.mjs";
 
 const { env } = process;
 
@@ -27,6 +28,7 @@ export async function run(ringApi) {
                     .replace(oldRefreshToken, newRefreshToken);
 
             await promisify(writeFile)(".env", updatedConfig);
+            await storeRefreshToken(newRefreshToken);
         }
     );
 

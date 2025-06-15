@@ -40,7 +40,7 @@ async function capture(cameraName) {
 
 // Start the main function
 logger.info('Starting the service');
-const ringApi = getLoggedInRingApi();
+const ringApi = await getLoggedInRingApi();
 await run(ringApi);
 
 app.use(express.json());
