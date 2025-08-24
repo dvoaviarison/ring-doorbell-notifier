@@ -3,14 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ring Doorbell Notifier</title>
+  <meta name="theme-color" content="#f8f9fa"/>
+  <title>Ring Notifier</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="styles.css" rel="stylesheet">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+  <link rel="icon" href="images/favicon.ico" type="image/x-icon">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 <body class="bg-light">
-  <div class="container py-5">
-    <h1 class="mb-4">Ring Doorbell Notifier</h1>
+  <header class="app-header text-white shadow-sm">
+    <div class="container">
+      <div class="d-flex align-items-center header-content">
+        <img src="images/apple-touch-icon.png" alt="Ring Notifier Icon" class="header-icon">
+        <span class="fs-4">Ring Notifier</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container py-4">
     <div class="tab-content mb-5">
       <div class="tab-pane fade show active" id="homeTabPane" role="tabpanel" aria-labelledby="home-tab">
         <div id="captureContent" class="card">
@@ -47,8 +59,8 @@
         </div>
       </div>
     </div>
-    <footer class="mt-5 text-muted text-center">Ring Notifier &copy; 2025</footer>
-  </div>
+    <footer class="mt-4 text-muted text-center">Ring Notifier &copy; 2025</footer>
+  </main>
   <!-- Tabs at bottom -->
   <ul class="nav nav-tabs nav-tabs-bottom justify-content-center" id="mainTab" role="tablist">
     <li class="nav-item" role="presentation">
@@ -63,5 +75,16 @@
     </li>
   </ul>
   <script src="main.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(registration => {
+          console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        }, err => {
+          console.log('ServiceWorker registration failed: ', err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

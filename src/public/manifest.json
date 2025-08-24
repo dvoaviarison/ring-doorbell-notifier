@@ -1,0 +1,21 @@
+{
+  "name": "Ring Notifier",
+  "short_name": "RingNotifier",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f8f9fa",
+  "description": "A simple app to get notifications from your Ring doorbell.",
+  "icons": [
+    {
+      "src": "images/apple-touch-icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "images/apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
