@@ -15,6 +15,7 @@ import passport from 'passport';
 dotenv.config({ path: '.env' });
 const { env } = process;
 const app = express();
+app.set('trust proxy', 1);
 const port = env.APP_SERVER_PORT;
 
 const __filename = fileURLToPath(import.meta.url);
