@@ -26,26 +26,4 @@ export function setupAuth(app, logger) {
       res.redirect('/');
     }
   );
-
-  // Authentication middleware
-  function ensureAuthenticated(req, res, next) {
-    // Bypass Google auth for Slack bot requests
-    if (req.headers['x-slack-bot-token'] === process.env.SLACK_BOT_TOKEN) {
-      return next();
-    }
-    if (req.isAuthenticated()) return next();
-    res.redirect('/auth/google');
-  }
-
-  // Protect all routes except auth and static assets
-  app.use((req, res, next) => {
-    if (
-      req.path.startsWith('/auth/google') ||
-      req.path.startsWith('/public') ||
-      req.path.startsWith('/favicon.ico')
-    ) {
-      return next();
-    }
-    ensureAuthenticated(req, res, next);
-  });
 }

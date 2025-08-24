@@ -5,7 +5,7 @@ import { updateEnvValue } from './helpers/fileHelper/index.mjs';
 import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
 import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
-import { setupAuth } from './auth.mjs';
+import { setupAuth } from './helpers/authHelper/index.mjs';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -55,12 +55,34 @@ app.use(express.urlencoded({ extended: true }));
 
 // Configure session and passport
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'your_secret',
   resave: false,
   saveUninitialized: false
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Authentication middleware
+function ensureAuthenticated(req, res, next) {
+  // Bypass Google auth for Slack bot requests
+  if (req.headers['x-slack-bot-token'] === process.env.SLACK_BOT_TOKEN) {
+    return next();
+  }
+  if (req.isAuthenticated()) return next();
+  res.redirect('/auth/google');
+}
+
+// Protect all routes except auth and static assets
+app.use((req, res, next) => {
+  if (
+    req.path.startsWith('/auth/google') ||
+    req.path.startsWith('/public') ||
+    req.path.startsWith('/favicon.ico')
+  ) {
+    return next();
+  }
+  ensureAuthenticated(req, res, next);
+});
 
 // Serve static files (after protection)
 app.use(express.static(path.join(__dirname, 'public')));
