@@ -5,10 +5,12 @@ import { updateEnvValue } from './helpers/fileHelper/index.mjs';
 import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
 import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
-
+import { setupAuth } from './auth.mjs';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import session from 'express-session';
+import passport from 'passport';
 
 dotenv.config({ path: '.env' });
 const { env } = process;
@@ -50,6 +52,17 @@ await run(ringApi);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Configure session and passport
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Serve static files (after protection)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Home page :)
@@ -134,6 +147,8 @@ app.get('/env', (req, res) => {
   const value = process.env[name];
   res.json({ [name]: value ?? null });
 });
+
+setupAuth(app, logger);
 
 app.listen(port, () => {
   logger.info(`Server is running on http://localhost:${port}`);
