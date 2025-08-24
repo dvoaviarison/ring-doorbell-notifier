@@ -66,6 +66,7 @@ app.use(passport.session());
 function ensureAuthenticated(req, res, next) {
   // Bypass Google auth for Slack bot requests
   if (req.headers['x-slack-bot-token'] === process.env.SLACK_BOT_TOKEN) {
+    logger.info('Bypassing auth for Slack bot request');
     return next();
   }
   if (req.isAuthenticated()) return next();

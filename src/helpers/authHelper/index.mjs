@@ -1,10 +1,14 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 
+const callbackURL = process.env.NODE_ENV === 'production'
+  ? 'https://ring-doorbell-notifier.onrender.com/auth/google/callback'
+  : '/auth/google/callback';
+
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: '/auth/google/callback'
+  callbackURL: callbackURL
 }, (accessToken, refreshToken, profile, done) => {
   return done(null, profile);
 }));
