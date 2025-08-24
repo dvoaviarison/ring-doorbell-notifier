@@ -7,11 +7,16 @@ import { handleRingNotification } from './ringNotificationHandler/index.mjs';
 import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config({ path: '.env' });
 const { env } = process;
 const app = express();
 const port = env.APP_SERVER_PORT;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function updateEnvFile(req, res) {
   const { key, value } = req;
@@ -45,10 +50,11 @@ await run(ringApi);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Home page :)
 app.get('/', (req, res) => {
-  res.send(`Welcome to 🅁🄸🄽🄶 🄽🄾🅃🄸🄵🄸🄴🅁`);
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Healthcheck endpoint
@@ -100,6 +106,33 @@ app.post('/capture', async (req, res) => {
   } catch (error) {
     res.status(500).send(error.stack);
   }
+});
+
+// GET endpoint to expose camera names
+app.get('/cameras', async (req, res) => {
+  try {
+    const locations = await ringApi.getLocations();
+    const cameras = [];
+    for (const location of locations) {
+      if (location.cameras && Array.isArray(location.cameras)) {
+        cameras.push(...location.cameras.map(cam => cam.name));
+      }
+    }
+    res.json(cameras);
+  } catch (error) {
+    logger.error('Error fetching cameras:', error);
+    res.status(500).json([]);
+  }
+});
+
+// GET /env?name=ENV_VAR_NAME
+app.get('/env', (req, res) => {
+  const { name } = req.query;
+  if (!name) {
+    return res.status(400).json({ error: 'Missing name query parameter' });
+  }
+  const value = process.env[name];
+  res.json({ [name]: value ?? null });
 });
 
 app.listen(port, () => {
