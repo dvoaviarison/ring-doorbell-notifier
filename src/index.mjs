@@ -1,16 +1,13 @@
 import dotenv from 'dotenv';
 import { run } from './app.mjs';
 import { logger } from './helpers/logHelper/index.mjs';
-import { updateEnvValue } from './helpers/fileHelper/index.mjs';
+import { updateEnvValue, purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
-import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
-import { setupAuth } from './helpers/authHelper/index.mjs';
+import { setupAuth, setupSession, authMiddleware } from './helpers/authHelper/index.mjs';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import session from 'express-session';
-import passport from 'passport';
 
 dotenv.config({ path: '.env' });
 const { env } = process;
@@ -55,36 +52,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Configure session and passport
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your_secret',
-  resave: false,
-  saveUninitialized: false
-}));
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Authentication middleware
-function ensureAuthenticated(req, res, next) {
-  // Bypass Google auth for Slack bot requests
-  if (req.headers['x-slack-bot-token'] === process.env.SLACK_BOT_TOKEN) {
-    logger.info('Bypassing auth for Slack bot request');
-    return next();
-  }
-  if (req.isAuthenticated()) return next();
-  res.redirect('/auth/google');
-}
-
-// Protect all routes except auth and static assets
-app.use((req, res, next) => {
-  if (
-    req.path.startsWith('/auth/google') ||
-    req.path.startsWith('/public') ||
-    req.path.startsWith('/favicon.ico')
-  ) {
-    return next();
-  }
-  ensureAuthenticated(req, res, next);
-});
+setupSession(app);
+app.use(authMiddleware);
 
 // Serve static files (after protection)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -134,10 +103,6 @@ app.post('/update-ai-type', (req, res) => {
 app.post('/capture', async (req, res) => {
   try {
     const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
-    // if (req.body.channel_id) {
-    //   await sendSimpleSlackNotification(`Capture on demand request received for ${cameraName}`, req.body.channel_id);
-    // }
-    
     capture(cameraName);
     res.status(200).send('Capture on demand complete. Notification will be sent soon!')
   } catch (error) {

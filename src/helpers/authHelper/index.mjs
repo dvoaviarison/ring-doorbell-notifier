@@ -1,5 +1,8 @@
 import passport from 'passport';
+import crypto from 'crypto';
+import { logger } from '../logHelper/index.mjs';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import session from 'express-session';
 
 const callbackURL = `${process.env.APP_SERVER_URL || ''}/auth/google/callback`;
 
@@ -13,6 +16,16 @@ passport.use(new GoogleStrategy({
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
+
+export function setupSession(app) {
+  app.use(session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false
+  }));
+  app.use(passport.initialize());
+  app.use(passport.session());
+}
 
 export function setupAuth(app, logger) {
   // Start Google OAuth flow
@@ -28,4 +41,60 @@ export function setupAuth(app, logger) {
       res.redirect('/');
     }
   );
+}
+
+function isSlackRequestValid(req) {
+  const signingSecret = process.env.SLACK_SIGNING_SECRET;
+  if (!signingSecret) {
+    logger.warn('SLACK_SIGNING_SECRET is not set. Cannot verify Slack requests.');
+    return false;
+  }
+
+  const slackSignature = req.headers['x-slack-signature'];
+  const requestTimestamp = req.headers['x-slack-request-timestamp'];
+  const rawBody = req.rawBody; // Requires raw body middleware
+
+  if (!slackSignature || !requestTimestamp || !rawBody) {
+    return false;
+  }
+
+  // Prevent replay attacks by checking if the request is older than 5 minutes
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - requestTimestamp) > 300) {
+    logger.warn('Slack request timestamp is too old. Possible replay attack.');
+    return false;
+  }
+
+  const sigBasestring = `v0:${requestTimestamp}:${rawBody}`;
+  const mySignature = 'v0=' +
+    crypto.createHmac('sha256', signingSecret)
+          .update(sigBasestring, 'utf8')
+          .digest('hex');
+
+  return crypto.timingSafeEqual(Buffer.from(mySignature, 'utf8'), Buffer.from(slackSignature, 'utf8'));
+}
+
+function ensureAuthenticated(req, res, next) {
+  // Bypass Google auth for Slack bot requests
+  if (isSlackRequestValid(req)) {
+    logger.info('Bypassing auth for Slack bot request');
+    return next();
+  }
+
+  if (req.isAuthenticated()) {
+    return next();
+  }
+
+  res.redirect('/auth/google');
+}
+
+export function authMiddleware(req, res, next) {
+  const publicPaths = ['/auth/google', '/public', '/favicon.ico', '/health'];
+
+  const isPublic = publicPaths.some(path => req.path.startsWith(path));
+  if (isPublic) {
+    return next();
+  }
+
+  ensureAuthenticated(req, res, next);
 }
