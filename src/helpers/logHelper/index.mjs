@@ -1,6 +1,10 @@
 import winston from 'winston';
 import { asyncLocalStorage } from '../contextHelper/index.mjs';
 
+const transports = [
+  new winston.transports.Console(),
+];
+
 export const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
@@ -13,8 +17,5 @@ export const logger = winston.createLogger({
       return `${timestamp} [${user}] [${level}]: ${message}`;
     })
   ),
-  transports: [
-    new winston.transports.Console(),
-    // Add other transports as needed, e.g., file transport
-  ],
+  transports,
 });

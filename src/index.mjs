@@ -4,7 +4,7 @@ import { logger } from './helpers/logHelper/index.mjs';
 import { updateEnvValue, purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
-import { asyncLocalStorage, contextMiddleware } from './helpers/contextHelper/index.mjs';
+import { contextMiddleware } from './helpers/contextHelper/index.mjs';
 import { setupAuth, setupSession, authMiddleware } from './helpers/authHelper/index.mjs';
 import express from 'express';
 import path from 'path';
