@@ -89,10 +89,15 @@ function ensureAuthenticated(req, res, next) {
 }
 
 export function authMiddleware(req, res, next) {
-  const publicPaths = ['/auth/google', '/public', '/favicon.ico', '/health'];
+  const publicPaths = ['/auth/google', '/public', '/health'];
+  const publicFiles = ['/favicon.ico', '/manifest.json', '/robots.txt'];
+  const publicExtensions = ['.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.eot'];
 
-  const isPublic = publicPaths.some(path => req.path.startsWith(path));
-  if (isPublic) {
+  const isPublicPath = publicPaths.some(path => req.path.startsWith(path));
+  const isPublicFile = publicFiles.includes(req.path);
+  const isPublicExtension = publicExtensions.some(ext => req.path.endsWith(ext));
+  
+  if (isPublicPath || isPublicFile || isPublicExtension) {
     return next();
   }
 
