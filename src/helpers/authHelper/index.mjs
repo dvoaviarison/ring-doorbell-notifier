@@ -103,13 +103,3 @@ export function authMiddleware(req, res, next) {
 
   ensureAuthenticated(req, res, next);
 }
-
-export function rawBodyMiddleware(req, res, next) {
-  req.rawBody = '';
-  req.on('data', (chunk) => {
-    req.rawBody += chunk.toString();
-  });
-  req.on('end', () => {
-    next();
-  });
-};
