@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from "../logHelper/index.mjs";
 import { GoogleAIFileManager } from "@google/generative-ai/server";
+import GeminiKeyManager from './geminiKeyManager/index.mjs';
 
 const { env } = process;
 
@@ -15,6 +16,8 @@ function encodeImage(imagePath) {
     const imageFile = fs.readFileSync(imagePath);
     return Buffer.from(imageFile).toString('base64');
 }
+
+let activeGeminiKeyManager = new GeminiKeyManager(env.APP_AI_GEMINI_API_KEYS);
 
 export async function getAIPoweredSnapshotDescription(snapshotFileName, videoFileName, cameraName) {
     switch (env.APP_AI_TYPE) {
@@ -105,62 +108,87 @@ export async function getSnapshotDescriptionViaOllama(snapshotFileName, cameraNa
 }
 
 export async function getSnapshotDescriptionViaGemini(snapshotFileName, cameraName) {
-    try {
-        const genAI = new GoogleGenerativeAI(env.APP_AI_GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
-        const imagePath = `${env.APP_RECORDING_FOLDER}/${snapshotFileName}`;
-        const base64Image = encodeImage(imagePath);
-        const instruction = env.APP_AI_USER_PROMPT.replace(/%cameraName%/g, cameraName);
-    
-        const imageResp = await fetch(`data:image/png;base64,${base64Image}`)
-            .then((response) => response.arrayBuffer());
-    
-        const result = await model.generateContent([
-            {
-                inlineData: {
-                    data: Buffer.from(imageResp).toString("base64"),
-                    mimeType: "image/jpeg",
-                },
-            },
-            `Your role is to tell me what you see. Only focus on the entities that are susceptible to be in motion. If none, then tell me there is nothing. Do not say snapshot. ${instruction}`
-        ]);
-    
-        const description = result.response.text();
-        return description;
-    } catch (error){
-        logger.error(`Failed to get snapshot description from gemini, falling back. ${error}`);
+    const keyCount = activeGeminiKeyManager.getKeyCount();
+    if (keyCount === 0) {
+        logger.error('No Gemini keys configured, falling back to TogetherAI.');
         return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
     }
+
+    for (let attempt = 0; attempt < keyCount; attempt++) {
+        const apiKey = activeGeminiKeyManager.getCurrentKey();
+        try {
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
+            const imagePath = `${env.APP_RECORDING_FOLDER}/${snapshotFileName}`;
+            const base64Image = encodeImage(imagePath);
+            const instruction = env.APP_AI_USER_PROMPT.replace(/%cameraName%/g, cameraName);
+
+            const imageResp = await fetch(`data:image/png;base64,${base64Image}`)
+                .then((response) => response.arrayBuffer());
+
+            const result = await model.generateContent([
+                {
+                    inlineData: {
+                        data: Buffer.from(imageResp).toString("base64"),
+                        mimeType: "image/jpeg",
+                    },
+                },
+                `Your role is to tell me what you see. Only focus on the entities that are susceptible to be in motion. If none, then tell me there is nothing. Do not say snapshot. ${instruction}`
+            ]);
+
+            const description = result.response.text();
+            return description;
+        } catch (error) {
+            logger.error(`Failed to get snapshot description from gemini with current key: ${error}. Trying with the next key if any other available.`);
+            activeGeminiKeyManager.moveNext();
+        }
+    }
+
+    logger.error('All Gemini keys failed for snapshot, falling back to TogetherAI.');
+    return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
 }
 
 export async function getVideoDescriptionViaGemini(snapshotFileName, videoFileName, cameraName) {
-    try {
-        const genAI = new GoogleGenerativeAI(env.APP_AI_GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
-        const file = await uploadToGemini(videoFileName);
-
-        const result = await model.generateContent([
-            {
-                fileData: {
-                    fileUri: file.uri,
-                    mimeType: file.mimeType,
-                },
-            },
-            env.APP_AI_USER_PROMPT.replace(/%cameraName%/g, cameraName)
-        ]);
-
-        const description = result.response.text();
-        logger.info(`Gemini video description ready: ${description}`);
-        return description;
-    } catch (error) {
-        logger.error(`Failed to get video description from gemini, falling back. ${error}`);
-        return await getSnapshotDescriptionViaGemini(snapshotFileName, cameraName);
+    const keyCount = activeGeminiKeyManager.getKeyCount();
+    if (keyCount === 0) {
+        logger.error('No Gemini keys configured, falling back to TogetherAI.');
+        return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
     }
+
+    for (let attempt = 0; attempt < keyCount; attempt++) {
+        const apiKey = activeGeminiKeyManager.getCurrentKey();
+        try {
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
+            const file = await uploadToGemini(videoFileName);
+
+            const result = await model.generateContent([
+                {
+                    fileData: {
+                        fileUri: file.uri,
+                        mimeType: file.mimeType,
+                    },
+                },
+                env.APP_AI_USER_PROMPT.replace(/%cameraName%/g, cameraName)
+            ]);
+
+            const description = result.response.text();
+            logger.info(`Gemini video description ready: ${description}`);
+            return description;
+        } catch (error) {
+            logger.error(`Failed to get video description from gemini with current key: ${error}`);
+            activeGeminiKeyManager.moveNext();
+        }
+    }
+
+    logger.error('All Gemini keys failed for video, falling back to TogetherAI snapshot.');
+    return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
 }
 
 async function uploadToGemini(fileName, mimeType = "video/mp4") {
+    const apiKey = activeGeminiKeyManager.getCurrentKey();
     const filePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
-    const fileManager = new GoogleAIFileManager(env.APP_AI_GEMINI_API_KEY);
+    const fileManager = new GoogleAIFileManager(apiKey);
     const uploadResult = await fileManager.uploadFile(filePath, {
         mimeType,
         displayName: fileName,
