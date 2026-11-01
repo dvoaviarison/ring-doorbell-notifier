@@ -28,12 +28,6 @@ export async function takeSnapshotFromVideo(videoFileName, snapshotFileName) {
 export async function recordVideoFromCamera(camera, videoFileName, recordingDurationSec) {
     const stream = await camera.streamVideo({
         input: ['-thread_queue_size', '512', '-fflags', '+genpts'],
-        video: [
-            '-c:v', 'libx264',
-            '-preset', 'veryfast',
-            '-crf', '20',
-            '-fps_mode', 'cfr'
-        ],
         output: [
             '-t',
             recordingDurationSec.toString(),

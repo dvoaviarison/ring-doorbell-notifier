@@ -23,12 +23,6 @@ describe('recordVideoFromCamera', () => {
 
         expect(camera.streamVideo).toHaveBeenCalledWith({
             input: ['-thread_queue_size', '512', '-fflags', '+genpts'],
-            video: [
-                '-c:v', 'libx264',
-                '-preset', 'veryfast',
-                '-crf', '20',
-                '-fps_mode', 'cfr'
-            ],
             output: ['-t', '10', '/recordings/doorbell.mp4']
         });
         expect(unsubscribe).toHaveBeenCalledTimes(1);
