@@ -1,0 +1,11 @@
+mode: Mainline
+next-version: 3.0.0
+commit-message-incrementing: Enabled
+major-version-bump-message: '(?i)(\+semver:\s?(breaking|major)|BREAKING CHANGE:|^[a-z]+(\([^)]+\))?!:)'
+minor-version-bump-message: '(?i)(\+semver:\s?(feature|minor)|^feat(\([^)]+\))?:)'
+patch-version-bump-message: '(?i)(\+semver:\s?(fix|patch)|^(fix|perf|refactor)(\([^)]+\))?:)'
+branches:
+  main:
+    regex: ^main$
+    is-main-branch: true
+    increment: Patch
