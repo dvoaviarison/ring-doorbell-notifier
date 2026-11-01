@@ -2,6 +2,7 @@ import "dotenv/config";
 import { getFormattedDateTime } from '../helpers/dateHelper/index.mjs';
 import { sendSlackNotificationWithVideo } from '../helpers/notificationHelper/index.mjs';
 import { uploadFileToMega } from '../helpers/uploadHelper/index.mjs';
+import { recordVideoFromCamera } from '../helpers/videoHelper/index.mjs';
 import { formatMessage } from '../helpers/messageHelper/index.mjs';
 import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
 import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
@@ -15,7 +16,7 @@ export async function handleRingNotification(camera, notif) {
     const videoFileName = `${camera.name}-${getFormattedDateTime()}.mp4`;
 
     logger.info('Recording video...');
-    await camera.recordToFile(`${env.APP_RECORDING_FOLDER}/${videoFileName}`, recordingDurationSec);
+    await recordVideoFromCamera(camera, videoFileName, recordingDurationSec);
     logger.info('Video recorded. Uploading');
 
     const releaseSlackFile = trackPendingUpload(`${env.APP_RECORDING_FOLDER}/${videoFileName}`);
