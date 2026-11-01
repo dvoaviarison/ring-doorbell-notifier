@@ -1,5 +1,5 @@
 # Use the official Node.js image as the base image
-FROM node:18
+FROM node:22
 
 # Install ffmpeg 
 RUN apt-get update && apt-get install -y ffmpeg
@@ -11,7 +11,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install the dependencies
-RUN npm install
+RUN npm ci
 
 # Copy the rest of the application files
 COPY . .

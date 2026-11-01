@@ -18,6 +18,9 @@
     "together-ai": "^0.10.0",
     "util": "^0.12.5"
   },
+  "overrides": {
+    "@eneris/push-receiver": "4.4.0"
+  },
   "name": "ring-doorbell-notifier",
   "version": "1.0.0",
   "main": "./src/index.js",
