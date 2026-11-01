@@ -2,18 +2,29 @@
 async function fetchCameras() {
   try {
     const res = await fetch('/cameras');
-    const cameras = await res.json();
+    const cameras = res.ok ? await res.json() : [];
     const dropdown = document.getElementById('cameraDropdown');
+    dropdown.querySelectorAll('option:not(:disabled)').forEach(option => option.remove());
+    if (!Array.isArray(cameras)) {
+      throw new Error('Ring is not connected. Connect your Ring account in Settings.');
+    }
     cameras.forEach(name => {
       const option = document.createElement('option');
       option.value = name;
       option.textContent = name;
       dropdown.appendChild(option);
     });
+    if (cameras.length === 0) {
+      document.getElementById('result-capture').innerText = 'No Ring cameras available. Check the Ring connection in Settings.';
+    } else {
+      document.getElementById('result-capture').innerText = '';
+    }
   } catch (err) {
-    document.getElementById('result-capture').innerText = 'Error loading cameras: ' + err;
+    document.getElementById('result-capture').innerText = 'Error loading cameras: ' + err.message;
   }
 }
+
+window.refreshCameras = fetchCameras;
 
 function toggleButton() {
   const cameraName = document.getElementById('cameraDropdown').value;
@@ -42,20 +53,11 @@ async function callCapture() {
 
 // Collapsible Prompt Card
 document.addEventListener('DOMContentLoaded', () => {
-  fetchCameras();
+  if (window.location.hash === '#settings') {
+    bootstrap.Tab.getOrCreateInstance(document.getElementById('settings-tab')).show();
+  }
 
-  document.getElementById('logoutBtn').addEventListener('click', async () => {
-    try {
-      const response = await fetch('/auth/ring/logout', { method: 'POST' });
-      if (response.ok) {
-        window.location.replace('/login');
-      } else {
-        window.alert('Could not sign out. Please try again.');
-      }
-    } catch {
-      window.alert('Could not contact the server. Please try again.');
-    }
-  });
+  fetchCameras();
 
   // Pre-populate prompt textbox from /env?name=APP_AI_USER_PROMPT
   fetch('/env?name=APP_AI_USER_PROMPT')

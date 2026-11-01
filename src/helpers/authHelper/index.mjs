@@ -4,7 +4,6 @@ import session from 'express-session';
 import { RingRestClient } from 'ring-client-api/rest-client';
 import { updateEnvValue } from '../fileHelper/index.mjs';
 import { storeRefreshToken } from '../dbHelper/index.mjs';
-import { fileURLToPath } from 'url';
 
 export function setupSession(app) {
   const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -27,13 +26,15 @@ export function setupSession(app) {
 const pendingRingLogins = new Map();
 const loginTimeoutMs = 10 * 60 * 1000;
 
-export function setupAuth(app, logger, onRingLogin) {
+export function setupAuth(app, logger, onRingLogin, isRingConnected = () => false) {
   app.get('/login', (_req, res) => {
-    res.sendFile(fileURLToPath(new URL('../../public/login.html', import.meta.url)));
+    res.redirect('/#settings');
   });
 
   app.get('/auth/ring/status', (req, res) => {
-    res.json({ authenticated: req.session.ringAuthenticated === true });
+    res.json({
+      authenticated: isRingConnected() || req.session.ringAuthenticated === true
+    });
   });
 
   app.post('/auth/ring/login', async (req, res) => {
@@ -181,21 +182,21 @@ function isSlackRequestValid(req) {
   return crypto.timingSafeEqual(Buffer.from(mySignature, 'utf8'), Buffer.from(slackSignature, 'utf8'));
 }
 
-function ensureAuthenticated(req, res, next) {
+function ensureAuthenticated(req, res, next, isRingConnected) {
   // Bypass Google auth for Slack bot requests
   if (isSlackRequestValid(req)) {
     logger.info('Bypassing auth for Slack bot request');
     return next();
   }
 
-  if (req.session?.ringAuthenticated === true) {
+  if (isRingConnected() || req.session?.ringAuthenticated === true) {
     return next();
   }
 
-  res.redirect('/login');
+  res.redirect('/#settings');
 }
 
-export function authMiddleware(req, res, next) {
+export function authMiddleware(req, res, next, isRingConnected = () => false) {
   const publicPaths = ['/auth/ring/', '/login', '/public', '/health'];
   const publicFiles = ['/favicon.ico', '/manifest.json', '/robots.txt'];
   const publicExtensions = ['.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.eot'];
@@ -203,10 +204,12 @@ export function authMiddleware(req, res, next) {
   const isPublicPath = publicPaths.some(path => req.path.startsWith(path));
   const isPublicFile = publicFiles.includes(req.path);
   const isPublicExtension = publicExtensions.some(ext => req.path.endsWith(ext));
+  const isApplicationEntry = req.path === '/' || req.path === '/index.html';
+  const isCameraListEndpoint = req.path === '/cameras';
   
-  if (isPublicPath || isPublicFile || isPublicExtension) {
+  if (isApplicationEntry || isPublicPath || isPublicFile || isPublicExtension || isCameraListEndpoint) {
     return next();
   }
 
-  ensureAuthenticated(req, res, next);
+  ensureAuthenticated(req, res, next, isRingConnected);
 }

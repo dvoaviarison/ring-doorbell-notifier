@@ -80,7 +80,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Configure session and Ring authentication
 setupSession(app);
-app.use(authMiddleware);
+app.use((req, res, next) => authMiddleware(req, res, next, () => Boolean(ringApi)));
 app.use(contextMiddleware);
 
 // Serve static files (after protection)
@@ -170,7 +170,7 @@ app.get('/env', (req, res) => {
 
 setupAuth(app, logger, async (refreshToken) => {
   await activateRingApi(refreshToken);
-});
+}, () => Boolean(ringApi));
 
 app.listen(port, () => {
   logger.info(`Server is running on http://localhost:${port}`);

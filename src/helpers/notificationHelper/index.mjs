@@ -16,6 +16,17 @@ export async function sendSlackNotificationWithSnapshot(message, snapShotFileNam
     return res;
 }
 
+export async function sendSlackNotificationWithVideo(message, videoFileName) {
+    const slackClient = new WebClient(env.SLACK_BOT_TOKEN);
+    const filePath = `${env.APP_RECORDING_FOLDER}/${videoFileName}`;
+    return slackClient.filesUploadV2({
+        channel_id: env.SLACK_CHANNEL_ID,
+        initial_comment: message,
+        file: filePath,
+        filename: videoFileName,
+    });
+}
+
 export async function sendSimpleSlackNotification(message, channel = env.SLACK_CHANNEL_ID) {
     try {
         const slackClient = new WebClient(env.SLACK_BOT_TOKEN);

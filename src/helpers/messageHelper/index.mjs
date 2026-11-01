@@ -1,4 +1,6 @@
 export function formatMessage(mainMessage, recordingUrl) {
-    const message = `@channel: ${mainMessage} <${recordingUrl}|View recording>`;
+    const message = recordingUrl
+        ? `@channel: ${mainMessage} <${recordingUrl}|View recording>`
+        : `@channel: ${mainMessage}`;
     return message;
 }

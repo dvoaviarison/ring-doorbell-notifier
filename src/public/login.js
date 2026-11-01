@@ -1,24 +1,33 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const form = document.getElementById('ringLoginForm');
-  const credentialsFields = document.getElementById('credentialsFields');
-  const mfaFields = document.getElementById('mfaFields');
-  const mfaPrompt = document.getElementById('mfaPrompt');
-  const mfaCode = document.getElementById('mfaCode');
-  const email = document.getElementById('email');
-  const password = document.getElementById('password');
-  const submitButton = document.getElementById('submitLogin');
-  const errorBox = document.getElementById('loginError');
+  if (!form) return;
+
+  const credentialsFields = document.getElementById('ringCredentialsFields');
+  const mfaFields = document.getElementById('ringMfaFields');
+  const mfaPrompt = document.getElementById('ringMfaPrompt');
+  const mfaCode = document.getElementById('ringMfaCode');
+  const email = document.getElementById('ringEmail');
+  const password = document.getElementById('ringPassword');
+  const submitButton = document.getElementById('submitRingLogin');
+  const errorBox = document.getElementById('ringLoginError');
+  const connectionStatus = document.getElementById('ringConnectionStatus');
+  const showLoginButton = document.getElementById('showRingLoginBtn');
   let requiresMfa = false;
 
   try {
     const response = await fetch('/auth/ring/status');
     const status = await response.json();
-    if (status.authenticated) {
-      window.location.replace('/');
-    }
+    updateConnectionStatus(status.authenticated);
   } catch {
-    showError('Could not check the login status. Refresh the page to try again.');
+    connectionStatus.textContent = 'Could not check the Ring connection status.';
   }
+
+  showLoginButton.addEventListener('click', () => {
+    form.classList.toggle('d-none');
+    showLoginButton.textContent = form.classList.contains('d-none')
+      ? 'Connect Ring account'
+      : 'Hide Ring account form';
+  });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -42,7 +51,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       const result = await response.json();
       if (result.authenticated) {
-        window.location.replace('/');
+        updateConnectionStatus(true);
+        form.reset();
+        form.classList.add('d-none');
+        showLoginButton.textContent = 'Reconnect Ring account';
+        requiresMfa = false;
+        credentialsFields.classList.remove('d-none');
+        mfaFields.classList.add('d-none');
+        email.required = true;
+        password.required = true;
+        mfaCode.required = false;
+        window.refreshCameras?.();
         return;
       }
       if (result.requiresMfa) {
@@ -75,5 +94,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   function hideError() {
     errorBox.textContent = '';
     errorBox.classList.add('d-none');
+  }
+
+  function updateConnectionStatus(connected) {
+    connectionStatus.textContent = connected
+      ? 'Connected to Ring. Your saved refresh token is active.'
+      : 'Not connected to Ring. Connect your account to enable camera features.';
+    connectionStatus.classList.toggle('text-success', connected);
+    connectionStatus.classList.toggle('text-danger', !connected);
+    showLoginButton.textContent = connected ? 'Reconnect Ring account' : 'Connect Ring account';
   }
 });

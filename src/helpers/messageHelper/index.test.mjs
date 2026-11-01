@@ -5,12 +5,16 @@ describe('Can formatMessage', () => {
         // Arrange
         const mainMessage = 'Check this out';
         const recordingUrl = 'http://example.com/recording';
-        const expectedMessage = '@channel: Check this out: <http://example.com/recording|View recording>';
+        const expectedMessage = '@channel: Check this out <http://example.com/recording|View recording>';
 
         // Act
         const result = formatMessage(mainMessage, recordingUrl);
 
         // Assert
         expect(result).toBe(expectedMessage);
+    });
+
+    it('formats the notification without a recording link', () => {
+        expect(formatMessage('Motion detected')).toBe('@channel: Motion detected');
     });
 });
