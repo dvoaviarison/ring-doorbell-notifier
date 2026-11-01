@@ -1,4 +1,6 @@
-mode: Mainline
+strategies:
+  - ConfiguredNextVersion
+  - Mainline
 next-version: 3.0.0
 commit-message-incrementing: Enabled
 major-version-bump-message: '(?i)(\+semver:\s?(breaking|major)|BREAKING CHANGE:|^[a-z]+(\([^)]+\))?!:)'
@@ -8,4 +10,5 @@ branches:
   main:
     regex: ^main$
     is-main-branch: true
+    mode: ContinuousDeployment
     increment: Patch
