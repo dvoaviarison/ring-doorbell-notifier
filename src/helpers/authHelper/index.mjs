@@ -7,8 +7,13 @@ import { storeRefreshToken } from '../dbHelper/index.mjs';
 import { fileURLToPath } from 'url';
 
 export function setupSession(app) {
+  const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+  if (!process.env.SESSION_SECRET) {
+    logger.warn('SESSION_SECRET is not configured. Using a temporary secret; sessions will be invalidated when the server restarts.');
+  }
+
   app.use(session({
-    secret: process.env.SESSION_SECRET,
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
