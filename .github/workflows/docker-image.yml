@@ -11,6 +11,8 @@ permissions:
 jobs:
   docker:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: v${{ steps.gitversion.outputs.semVer }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -61,3 +63,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: v${{ steps.gitversion.outputs.semVer }}
         run: gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --generate-notes --target "$GITHUB_SHA"
+
+  deploy-render:
+    needs: docker
+    runs-on: ubuntu-latest
+    environment:
+      name: render-production
+    steps:
+      - name: Deploy image to Render
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          IMAGE_URL: dvoaviarison/ring-doorbell-notifier:${{ needs.docker.outputs.image_tag }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::error::Set the RENDER_DEPLOY_HOOK_URL secret on the render-production Environment."
+            exit 1
+          fi
+          curl --fail --silent --show-error --get \
+            --data-urlencode "imgURL=$IMAGE_URL" \
+            "$RENDER_DEPLOY_HOOK_URL"
