@@ -42,7 +42,7 @@ jobs:
         id: metadata
         uses: docker/metadata-action@v5
         with:
-          images: dvoavairison/ring-doorbell-notifier
+          images: dvoaviarison/ring-doorbell-notifier
           tags: |
             type=raw,value=v${{ steps.gitversion.outputs.semVer }}
             type=raw,value=latest,enable={{is_default_branch}}
