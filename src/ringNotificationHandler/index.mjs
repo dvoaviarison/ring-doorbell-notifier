@@ -4,6 +4,8 @@ import { sendSlackNotificationWithVideo } from '../helpers/notificationHelper/in
 import { uploadFileToMega } from '../helpers/uploadHelper/index.mjs';
 import { formatMessage } from '../helpers/messageHelper/index.mjs';
 import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
+import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
+import { trackPendingUpload } from '../helpers/pendingUploadHelper/index.mjs';
 import { logger } from "../helpers/logHelper/index.mjs";
 
 const { env } = process;
@@ -16,6 +18,7 @@ export async function handleRingNotification(camera, notif) {
     await camera.recordToFile(`${env.APP_RECORDING_FOLDER}/${videoFileName}`, recordingDurationSec);
     logger.info('Video recorded. Uploading');
 
+    const releaseSlackFile = trackPendingUpload(`${env.APP_RECORDING_FOLDER}/${videoFileName}`);
     void uploadFileToMega(videoFileName)
         .then(() => logger.info('Video uploaded to Mega'))
         .catch((error) => logger.error('Failed to upload video to Mega:', error));
@@ -32,7 +35,15 @@ export async function handleRingNotification(camera, notif) {
 
     const message = formatMessage(messageBody);
     logger.info('Sending Slack notification with video...');
-    await sendSlackNotificationWithVideo(message, videoFileName);
+    try {
+        await sendSlackNotificationWithVideo(message, videoFileName);
+    } catch (error) {
+        logger.error('Failed to send video to Slack; keeping the recording for retry:', error);
+        throw error;
+    }
+
+    releaseSlackFile();
+    purgeLocalFiles();
     logger.info('Video attached to Slack');
 
     return message;

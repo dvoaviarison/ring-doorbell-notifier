@@ -18,11 +18,21 @@ jest.mock('../helpers/aiHelper/index.mjs', () => ({
     getAIPoweredVideoDescription: jest.fn()
 }));
 
+jest.mock('../helpers/pendingUploadHelper/index.mjs', () => ({
+    trackPendingUpload: jest.fn(() => jest.fn())
+}));
+
+jest.mock('../helpers/fileHelper/index.mjs', () => ({
+    purgeLocalFiles: jest.fn()
+}));
+
 import { handleRingNotification } from './index.mjs';
 import { sendSlackNotificationWithVideo } from '../helpers/notificationHelper/index.mjs';
 import { uploadFileToMega } from '../helpers/uploadHelper/index.mjs';
 import { formatMessage } from '../helpers/messageHelper/index.mjs';
 import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
+import { trackPendingUpload } from '../helpers/pendingUploadHelper/index.mjs';
+import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
 
 describe('handleRingNotification', () => {
     const previousAiEnabled = process.env.APP_ENABLE_AI;
@@ -83,9 +93,14 @@ describe('handleRingNotification', () => {
             '@channel: Motion detected',
             videoFileName
         );
+        expect(trackPendingUpload).toHaveBeenCalledWith(`/recordings/${videoFileName}`);
+        expect(trackPendingUpload.mock.results[0].value).not.toHaveBeenCalled();
+        expect(purgeLocalFiles).not.toHaveBeenCalled();
 
         resolveSlack({});
         await expect(notificationPromise).resolves.toBe('@channel: Motion detected');
+        expect(trackPendingUpload.mock.results[0].value).toHaveBeenCalledTimes(1);
+        expect(purgeLocalFiles).toHaveBeenCalled();
         resolveMega('https://mega.example/video');
     });
 
@@ -143,5 +158,32 @@ describe('handleRingNotification', () => {
             '@channel: Motion detected',
             'Front door-2026-11-01_120000.mp4'
         );
+    });
+
+    it('keeps the recording protected from cleanup until Slack succeeds', async () => {
+        let rejectSlack;
+        const releaseFile = jest.fn();
+        trackPendingUpload.mockReturnValue(releaseFile);
+        uploadFileToMega.mockReturnValue(new Promise(() => {}));
+        sendSlackNotificationWithVideo.mockReturnValue(new Promise((_, reject) => {
+            rejectSlack = reject;
+        }));
+
+        const camera = {
+            name: 'Front door',
+            recordToFile: jest.fn().mockResolvedValue(undefined)
+        };
+        const notificationPromise = handleRingNotification(camera, {
+            android_config: { body: 'Motion detected' }
+        });
+        await new Promise(setImmediate);
+
+        expect(releaseFile).not.toHaveBeenCalled();
+        expect(purgeLocalFiles).not.toHaveBeenCalled();
+
+        rejectSlack(new Error('Slack unavailable'));
+        await expect(notificationPromise).rejects.toThrow('Slack unavailable');
+        expect(releaseFile).not.toHaveBeenCalled();
+        expect(purgeLocalFiles).not.toHaveBeenCalled();
     });
 });
