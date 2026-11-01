@@ -44,6 +44,19 @@ async function callCapture() {
 document.addEventListener('DOMContentLoaded', () => {
   fetchCameras();
 
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    try {
+      const response = await fetch('/auth/ring/logout', { method: 'POST' });
+      if (response.ok) {
+        window.location.replace('/login');
+      } else {
+        window.alert('Could not sign out. Please try again.');
+      }
+    } catch {
+      window.alert('Could not contact the server. Please try again.');
+    }
+  });
+
   // Pre-populate prompt textbox from /env?name=APP_AI_USER_PROMPT
   fetch('/env?name=APP_AI_USER_PROMPT')
     .then(res => res.json())

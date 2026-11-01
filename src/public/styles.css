@@ -24,6 +24,14 @@ main.container {
 .tab-content {
   flex: 1 1 auto;
 }
+.login-container {
+  min-height: calc(100vh - 56px);
+  display: grid;
+  place-items: start center;
+}
+.login-card {
+  width: min(100%, 440px);
+}
 .nav-tabs-bottom {
   position: fixed;
   bottom: 0;

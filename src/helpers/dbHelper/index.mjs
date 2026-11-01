@@ -20,11 +20,11 @@ export async function getRefreshToken() {
         const collection = db.collection(configCollectionName);
         const refreshToken = await collection.findOne({ key: 'refreshToken' });
         if (refreshToken) {
-            logger.info(`Refresh token found: ${refreshToken.value.substring(0, 10)}...`);
+            logger.info('Refresh token found in the database.');
             return refreshToken.value;
         } else {
             logger.warn('No refresh token found in the database.');
-            return env.RING_REFRESH_TOKEN;;
+            return env.RING_REFRESH_TOKEN;
         }
     }
     catch (error) {
@@ -52,8 +52,8 @@ export async function storeRefreshToken(refreshToken) {
         );
     } catch (err) {
         logger.error('Error connecting to MongoDB or storing refresh token:', err);
+        throw err;
     } finally {
         await client.close();
     }
 }
-

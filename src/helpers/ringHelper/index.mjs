@@ -1,8 +1,8 @@
 import { RingApi } from 'ring-client-api';
 import { getRefreshToken } from "../dbHelper/index.mjs";
 
-export async function getLoggedInRingApi(){
-    const refreshToken = await getRefreshToken();
+export async function getLoggedInRingApi(refreshTokenOverride){
+    const refreshToken = refreshTokenOverride ?? await getRefreshToken();
     const ringApi = new RingApi({
         refreshToken: refreshToken,
     });

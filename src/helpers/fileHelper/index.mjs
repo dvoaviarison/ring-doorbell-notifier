@@ -8,20 +8,31 @@ const { env } = process;
 
 export function updateEnvValue(key, value, envPath = './.env') {
     const envConfig = fs.readFileSync(envPath, 'utf-8');
+    const escapedValue = String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const updatedLine = `${key}='${escapedValue}'`;
+    let found = false;
+    const hasTrailingNewline = envConfig.endsWith('\n');
+    const lines = envConfig.split('\n');
+    if (hasTrailingNewline) {
+        lines.pop();
+    }
 
-    // Split lines and update the value
-    const newEnvConfig = envConfig.split('\n').map(line => {
-        const [currentKey, _] = line.split('=');
+    const newEnvConfig = lines.map(line => {
+        const [currentKey] = line.split('=');
         if (currentKey === key) {
-            return `${key}='${value}'`;
+            found = true;
+            return updatedLine;
         }
         return line;
-    }).join('\n');
+    });
 
-    // Write updated values back to the .env file
-    fs.writeFileSync(envPath, newEnvConfig, 'utf-8');
+    if (!found) {
+        newEnvConfig.push(updatedLine);
+    }
+
+    fs.writeFileSync(envPath, `${newEnvConfig.join('\n')}${hasTrailingNewline ? '\n' : ''}`, 'utf-8');
     process.env[key] = value;
-    logger.info(`Updated ${key} to ${value}`);
+    logger.info(`Updated ${key} in the environment file.`);
 }
 
 export function purgeLocalFiles(

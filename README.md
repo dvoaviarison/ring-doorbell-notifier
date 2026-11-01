@@ -7,8 +7,10 @@ Simple, LLM/AI powered ([ollama](https://ollama.com), [together-ai](https://api.
 <img src="./docs/imgs/together.jpeg" alt="notif" width="400"/>
 
 ## How to run this locally
-- The hardest part is to fill in the variables in `.env.sample` then rename it to `.env`.
+- Fill in the required variables in `.env.sample` and save a copy as `.env`. Set `MONGO_DB_CONNECTION_STRING` and a long random `SESSION_SECRET` for web login.
 - Run `npm install` then `npm start`
+- Open the configured `APP_SERVER_PORT` in a browser and sign in with your Ring account. If Ring requests two-factor authentication, enter the verification code on the login page. The resulting refresh token is saved to MongoDB and `.env`.
+- Use HTTPS when exposing the login page outside your local machine so Ring credentials and the session cookie are protected in transit.
 
 ## How to run as a service using forever
 - Install forever: `npm install forever -g`

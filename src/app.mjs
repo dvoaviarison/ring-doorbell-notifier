@@ -1,50 +1,57 @@
 import "dotenv/config";
-import { readFile, writeFile } from "fs";
-import { promisify } from "util";
-import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
+import { purgeLocalFiles, updateEnvValue } from './helpers/fileHelper/index.mjs';
 import { handleRingNotification } from "./ringNotificationHandler/index.mjs";
 import { stopProcessInMs } from "./helpers/processHelper/index.mjs";
 import { logger } from "./helpers/logHelper/index.mjs";
 import { storeRefreshToken } from "./helpers/dbHelper/index.mjs";
 
 const { env } = process;
+let autoStopScheduled = false;
 
 export async function run(ringApi) {
-    if (env.APP_AUTO_STOP_MS) {
+    const subscriptions = [];
+
+    if (env.APP_AUTO_STOP_MS && !autoStopScheduled) {
         stopProcessInMs(env.APP_AUTO_STOP_MS);
+        autoStopScheduled = true;
     }
 
     // Keep token fresh
-    ringApi.onRefreshTokenUpdated.subscribe(
+    subscriptions.push(ringApi.onRefreshTokenUpdated.subscribe(
         async ({ newRefreshToken, oldRefreshToken }) => {
-            logger.info(`Refresh Token Updated: ${newRefreshToken.substring(0, 10)}...`);
-            if (!oldRefreshToken) {
+            if (newRefreshToken === oldRefreshToken) {
                 return;
             }
 
-            const currentConfig = await promisify(readFile)(".env"),
-                updatedConfig = currentConfig
-                    .toString()
-                    .replace(oldRefreshToken, newRefreshToken);
-
-            await promisify(writeFile)(".env", updatedConfig);
-            await storeRefreshToken(newRefreshToken);
+            try {
+                updateEnvValue('RING_REFRESH_TOKEN', newRefreshToken);
+                await storeRefreshToken(newRefreshToken);
+                logger.info('Ring refresh token updated in the environment file and database.');
+            } catch (error) {
+                logger.error('Could not persist the updated Ring refresh token:', error);
+            }
         }
-    );
+    ));
 
-    // Subscribe to all cameras' notifications
-    const allCameras = await ringApi.getCameras();
-    const locations = await ringApi.getLocations();
-    logger.info(`Found ${allCameras.length} cameras in ${locations.length} locations`);
-    
-    allCameras?.forEach((camera) => {
-        camera.onNewNotification.subscribe(async (notif) => {
+    try {
+        // Subscribe to all cameras' notifications
+        const allCameras = await ringApi.getCameras();
+        const locations = await ringApi.getLocations();
+        logger.info(`Found ${allCameras.length} cameras in ${locations.length} locations`);
 
-            // Handle Notification
-            await handleRingNotification(camera, notif);
+        allCameras?.forEach((camera) => {
+            subscriptions.push(camera.onNewNotification.subscribe(async (notif) => {
+                // Handle Notification
+                await handleRingNotification(camera, notif);
 
-            // Purge
-            purgeLocalFiles();
+                // Purge
+                purgeLocalFiles();
+            }));
         });
-    });
+
+        return () => subscriptions.forEach((subscription) => subscription.unsubscribe());
+    } catch (error) {
+        subscriptions.forEach((subscription) => subscription.unsubscribe());
+        throw error;
+    }
 } 

@@ -1,46 +1,148 @@
-import passport from 'passport';
 import crypto from 'crypto';
 import { logger } from '../logHelper/index.mjs';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import session from 'express-session';
-
-const callbackURL = `${process.env.APP_SERVER_URL || ''}/auth/google/callback`;
-
-passport.use(new GoogleStrategy({
-  clientID: process.env.GOOGLE_CLIENT_ID,
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: callbackURL
-}, (accessToken, refreshToken, profile, done) => {
-  return done(null, profile);
-}));
-
-passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((obj, done) => done(null, obj));
+import { RingRestClient } from 'ring-client-api/rest-client';
+import { updateEnvValue } from '../fileHelper/index.mjs';
+import { storeRefreshToken } from '../dbHelper/index.mjs';
+import { fileURLToPath } from 'url';
 
 export function setupSession(app) {
   app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production'
+    }
   }));
-  app.use(passport.initialize());
-  app.use(passport.session());
 }
 
-export function setupAuth(app, logger) {
-  // Start Google OAuth flow
-  app.get('/auth/google',
-    passport.authenticate('google', { scope: ['profile', 'email'] })
-  );
+const pendingRingLogins = new Map();
+const loginTimeoutMs = 10 * 60 * 1000;
 
-  // Handle Google OAuth callback
-  app.get('/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/auth/google' }),
-    (req, res) => {
-      logger.info(`User signed in: ${req.user.displayName} (${req.user.emails?.[0]?.value})`);
-      res.redirect('/');
+export function setupAuth(app, logger, onRingLogin) {
+  app.get('/login', (_req, res) => {
+    res.sendFile(fileURLToPath(new URL('../../public/login.html', import.meta.url)));
+  });
+
+  app.get('/auth/ring/status', (req, res) => {
+    res.json({ authenticated: req.session.ringAuthenticated === true });
+  });
+
+  app.post('/auth/ring/login', async (req, res) => {
+    const { email, password } = req.body ?? {};
+    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+      return res.status(400).json({ error: 'Ring email and password are required.' });
     }
-  );
+
+    const client = new RingRestClient({ email: email.trim(), password });
+    try {
+      await client.getAuth();
+      return await completeRingLogin(req, res, client, onRingLogin);
+    } catch (error) {
+      if (client.using2fa) {
+        req.session.ringMfaPending = true;
+        const sessionId = req.sessionID;
+        const pending = {
+          client,
+          expiresAt: Date.now() + loginTimeoutMs,
+          timeout: undefined
+        };
+        pending.timeout = setTimeout(() => {
+          if (pendingRingLogins.get(sessionId) === pending) clearPendingRingLogin(sessionId);
+        }, loginTimeoutMs);
+        pending.timeout.unref?.();
+        pendingRingLogins.set(req.sessionID, pending);
+        return res.json({
+          requiresMfa: true,
+          prompt: client.promptFor2fa || 'Enter the verification code sent by Ring.'
+        });
+      }
+
+      logger.warn('Ring login failed.');
+      return res.status(401).json({ error: 'Ring login failed. Check your credentials and try again.' });
+    }
+  });
+
+  app.post('/auth/ring/mfa', async (req, res) => {
+    const { code } = req.body ?? {};
+    const pending = pendingRingLogins.get(req.sessionID);
+    if (!pending || pending.expiresAt < Date.now()) {
+      clearPendingRingLogin(req.sessionID);
+      return res.status(400).json({ error: 'Your login session expired. Start again.' });
+    }
+    if (typeof code !== 'string' || !code.trim()) {
+      return res.status(400).json({ error: 'Enter the Ring verification code.' });
+    }
+
+    try {
+      await pending.client.getAuth(code.trim());
+      clearPendingRingLogin(req.sessionID);
+      return await completeRingLogin(req, res, pending.client, onRingLogin);
+    } catch (error) {
+      if (pending.client.using2fa) {
+        pending.expiresAt = Date.now() + loginTimeoutMs;
+        clearTimeout(pending.timeout);
+        const sessionId = req.sessionID;
+        pending.timeout = setTimeout(() => {
+          if (pendingRingLogins.get(sessionId) === pending) clearPendingRingLogin(sessionId);
+        }, loginTimeoutMs);
+        pending.timeout.unref?.();
+        return res.status(401).json({
+          requiresMfa: true,
+          error: 'The verification code was not accepted. Try again.',
+          prompt: pending.client.promptFor2fa
+        });
+      }
+
+      clearPendingRingLogin(req.sessionID);
+      logger.warn('Ring MFA login failed.');
+      return res.status(401).json({ error: 'Ring authentication failed. Start again.' });
+    }
+  });
+
+  app.post('/auth/ring/logout', (req, res, next) => {
+    clearPendingRingLogin(req.sessionID);
+    req.session.destroy((error) => {
+      if (error) return next(error);
+      res.clearCookie('connect.sid');
+      res.status(204).end();
+    });
+  });
+}
+
+function clearPendingRingLogin(sessionId) {
+  const pending = pendingRingLogins.get(sessionId);
+  if (pending) clearTimeout(pending.timeout);
+  pendingRingLogins.delete(sessionId);
+}
+
+async function completeRingLogin(req, res, client, onRingLogin) {
+  if (!client.refreshToken) {
+    return res.status(502).json({ error: 'Ring did not return a refresh token. Try again.' });
+  }
+
+  try {
+    await storeRefreshToken(client.refreshToken);
+    updateEnvValue('RING_REFRESH_TOKEN', client.refreshToken);
+    await onRingLogin(client.refreshToken);
+  } catch (error) {
+    logger.error('Ring token could not be saved or the service could not be initialized:', error);
+    return res.status(500).json({ error: 'Could not save your Ring login or start the notifier. Check server logs.' });
+  }
+
+  return new Promise((resolve) => {
+    req.session.regenerate((error) => {
+      if (error) {
+        logger.error('Could not establish an authenticated session:', error);
+        return resolve(res.status(500).json({ error: 'Login succeeded, but the session could not be created.' }));
+      }
+      req.session.ringAuthenticated = true;
+      resolve(res.json({ authenticated: true }));
+    });
+  });
 }
 
 function isSlackRequestValid(req) {
@@ -81,15 +183,15 @@ function ensureAuthenticated(req, res, next) {
     return next();
   }
 
-  if (req.isAuthenticated()) {
+  if (req.session?.ringAuthenticated === true) {
     return next();
   }
 
-  res.redirect('/auth/google');
+  res.redirect('/login');
 }
 
 export function authMiddleware(req, res, next) {
-  const publicPaths = ['/auth/google', '/public', '/health'];
+  const publicPaths = ['/auth/ring/', '/login', '/public', '/health'];
   const publicFiles = ['/favicon.ico', '/manifest.json', '/robots.txt'];
   const publicExtensions = ['.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.eot'];
 

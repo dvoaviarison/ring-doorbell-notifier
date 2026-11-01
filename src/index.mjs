@@ -18,6 +18,9 @@ const port = env.APP_SERVER_PORT;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+let ringApi;
+let ringApiCleanup;
+let ringApiActivation = 0;
 
 function updateEnvFile(req, res) {
   const { key, value } = req;
@@ -35,6 +38,9 @@ function updateEnvFile(req, res) {
 }
 
 async function capture(cameraName) {
+  if (!ringApi) {
+    throw new Error('Ring is not authenticated yet. Sign in to Ring first.');
+  }
   logger.info(`Capture on demand request received for ${cameraName}`);
   const locations = await ringApi.getLocations();
   const camera = findCamera(locations, cameraName);
@@ -44,15 +50,35 @@ async function capture(cameraName) {
   return notification;
 }
 
-// Start the main function
-logger.info('Starting the service');
-const ringApi = await getLoggedInRingApi();
-await run(ringApi);
+async function activateRingApi(refreshToken) {
+  const activation = ++ringApiActivation;
+  const api = await getLoggedInRingApi(refreshToken);
+  let cleanup;
+  try {
+    cleanup = await run(api);
+  } catch (error) {
+    api.disconnect();
+    throw error;
+  }
+
+  if (activation !== ringApiActivation) {
+    cleanup();
+    api.disconnect();
+    return;
+  }
+
+  const previousApi = ringApi;
+  const previousCleanup = ringApiCleanup;
+  ringApi = api;
+  ringApiCleanup = cleanup;
+  previousCleanup?.();
+  previousApi?.disconnect();
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Configure session and passport
+// Configure session and Ring authentication
 setupSession(app);
 app.use(authMiddleware);
 app.use(contextMiddleware);
@@ -105,16 +131,19 @@ app.post('/update-ai-type', (req, res) => {
 app.post('/capture', async (req, res) => {
   try {
     const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
-    capture(cameraName);
+    await capture(cameraName);
     res.status(200).send('Capture on demand complete. Notification will be sent soon!')
   } catch (error) {
-    res.status(500).send(error.stack);
+    res.status(500).send(error.message);
   }
 });
 
 // GET endpoint to expose camera names
 app.get('/cameras', async (req, res) => {
   try {
+    if (!ringApi) {
+      return res.status(503).json({ error: 'Ring is not authenticated. Sign in to Ring first.' });
+    }
     const locations = await ringApi.getLocations();
     const cameras = [];
     for (const location of locations) {
@@ -125,22 +154,28 @@ app.get('/cameras', async (req, res) => {
     res.json(cameras);
   } catch (error) {
     logger.error('Error fetching cameras:', error);
-    res.status(500).json([]);
+    res.status(500).json({ error: 'Could not load Ring cameras.' });
   }
 });
 
 // GET /env?name=ENV_VAR_NAME
 app.get('/env', (req, res) => {
   const { name } = req.query;
-  if (!name) {
-    return res.status(400).json({ error: 'Missing name query parameter' });
+  if (name !== 'APP_AI_USER_PROMPT') {
+    return res.status(400).json({ error: 'Unsupported environment setting.' });
   }
   const value = process.env[name];
   res.json({ [name]: value ?? null });
 });
 
-setupAuth(app, logger);
+setupAuth(app, logger, async (refreshToken) => {
+  await activateRingApi(refreshToken);
+});
 
 app.listen(port, () => {
   logger.info(`Server is running on http://localhost:${port}`);
+  logger.info('Starting the Ring notifier');
+  activateRingApi().catch((error) => {
+    logger.warn('Ring is not authenticated yet. Sign in through the web UI to connect:', error.message);
+  });
 });
