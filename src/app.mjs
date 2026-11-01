@@ -24,9 +24,9 @@ export async function run(ringApi) {
             }
 
             try {
-                updateEnvValue('RING_REFRESH_TOKEN', newRefreshToken);
                 await storeRefreshToken(newRefreshToken);
-                logger.info('Ring refresh token updated in the environment file and database.');
+                updateEnvValue('RING_REFRESH_TOKEN', newRefreshToken);
+                logger.info('Ring refresh token updated in the database and process environment.');
             } catch (error) {
                 logger.error('Could not persist the updated Ring refresh token:', error);
             }

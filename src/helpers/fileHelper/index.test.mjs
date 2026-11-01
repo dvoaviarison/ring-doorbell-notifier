@@ -42,4 +42,13 @@ describe('updateEnvValue', () => {
     expect(fs.readFileSync(envPath, 'utf8')).toBe("APP_SETTING=value\nRING_REFRESH_TOKEN='test-token'\n");
     expect(process.env.RING_REFRESH_TOKEN).toBe('test-token');
   });
+
+  test('updates the process environment when the environment file does not exist', () => {
+    const missingEnvPath = path.join(directory, 'missing.env');
+
+    updateEnvValue('RING_REFRESH_TOKEN', 'runtime-token', missingEnvPath);
+
+    expect(process.env.RING_REFRESH_TOKEN).toBe('runtime-token');
+    expect(fs.existsSync(missingEnvPath)).toBe(false);
+  });
 });

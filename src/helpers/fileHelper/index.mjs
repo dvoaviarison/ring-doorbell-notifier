@@ -7,6 +7,12 @@ import { logger } from "../logHelper/index.mjs";
 const { env } = process;
 
 export function updateEnvValue(key, value, envPath = './.env') {
+    process.env[key] = value;
+    if (!fs.existsSync(envPath)) {
+        logger.info(`Updated ${key} in the process environment; ${envPath} does not exist, skipping file write.`);
+        return;
+    }
+
     const envConfig = fs.readFileSync(envPath, 'utf-8');
     const escapedValue = String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const updatedLine = `${key}='${escapedValue}'`;
@@ -31,7 +37,6 @@ export function updateEnvValue(key, value, envPath = './.env') {
     }
 
     fs.writeFileSync(envPath, `${newEnvConfig.join('\n')}${hasTrailingNewline ? '\n' : ''}`, 'utf-8');
-    process.env[key] = value;
     logger.info(`Updated ${key} in the environment file.`);
 }
 
