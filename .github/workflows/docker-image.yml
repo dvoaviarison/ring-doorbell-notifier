@@ -73,12 +73,12 @@ jobs:
       - name: Deploy image to Render
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-          IMAGE_URL: dvoaviarison/ring-doorbell-notifier:${{ needs.docker.outputs.image_tag }}
+          IMAGE_URL: docker.io/dvoaviarison/ring-doorbell-notifier:${{ needs.docker.outputs.image_tag }}
         run: |
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
             echo "::error::Set the RENDER_DEPLOY_HOOK_URL secret on the render-production Environment."
             exit 1
           fi
-          curl --fail --silent --show-error --get \
+          curl --fail-with-body --silent --show-error --get \
             --data-urlencode "imgURL=$IMAGE_URL" \
             "$RENDER_DEPLOY_HOOK_URL"
