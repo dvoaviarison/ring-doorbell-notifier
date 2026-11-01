@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { sleep } from "../processHelper/index.mjs";
 import { logger } from "../logHelper/index.mjs";
+import { isUploadPending } from "../pendingUploadHelper/index.mjs";
 
 const { env } = process;
 
@@ -54,7 +55,7 @@ export function purgeLocalFiles(
             const filePath = path.join(folderPath, file);
             const fileExtension = path.extname(file).toLowerCase();
 
-            if (extensions.includes(fileExtension)) {
+            if (extensions.includes(fileExtension) && !isUploadPending(filePath)) {
                 fs.unlink(filePath, (err) => {
                     if (err) {
                         logger.error(`Error deleting file: ${err}`);

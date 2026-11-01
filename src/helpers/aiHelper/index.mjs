@@ -6,6 +6,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from "../logHelper/index.mjs";
 import { GoogleAIFileManager } from "@google/generative-ai/server";
 import GeminiKeyManager from './geminiKeyManager/index.mjs';
+import { takeSnapshotFromVideo } from '../videoHelper/index.mjs';
 
 const { env } = process;
 
@@ -19,14 +20,38 @@ function encodeImage(imagePath) {
 
 let activeGeminiKeyManager = new GeminiKeyManager(env.APP_AI_GEMINI_API_KEYS);
 
-export async function getAIPoweredSnapshotDescription(snapshotFileName, videoFileName, cameraName) {
+export async function getAIPoweredVideoDescription(videoFileName, cameraName) {
+    if (env.APP_AI_TYPE === 'gemini') {
+        try {
+            const description = await getVideoDescriptionViaGemini(videoFileName, cameraName);
+            if (description) {
+                return description;
+            }
+            logger.warn('Gemini returned no video description; falling back to frame analysis.');
+        } catch (error) {
+            logger.error('Could not describe the video with Gemini; falling back to frame analysis:', error);
+        }
+    } else {
+        logger.info(`AI provider "${env.APP_AI_TYPE || 'ollama'}" uses image analysis; falling back to a video frame.`);
+    }
+
+    return getAIPoweredSnapshotFallback(videoFileName, cameraName);
+}
+
+async function getAIPoweredSnapshotFallback(videoFileName, cameraName) {
+    const snapshotFileName = videoFileName.replace(/\.mp4$/i, '.jpg');
+    const hasSnapshot = await takeSnapshotFromVideo(videoFileName, snapshotFileName);
+    if (!hasSnapshot) {
+        throw new Error('Could not extract a frame from the video for AI analysis.');
+    }
+
     switch (env.APP_AI_TYPE) {
         case 'together-ai':
-            return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
+            return getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
         case 'gemini':
-            return await getVideoDescriptionViaGemini(snapshotFileName, videoFileName, cameraName);
+            return getSnapshotDescriptionViaGemini(snapshotFileName, cameraName);
         default:
-            return await getSnapshotDescriptionViaOllama(snapshotFileName, cameraName);
+            return getSnapshotDescriptionViaOllama(snapshotFileName, cameraName);
     }
 }
 
@@ -148,11 +173,10 @@ export async function getSnapshotDescriptionViaGemini(snapshotFileName, cameraNa
     return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
 }
 
-export async function getVideoDescriptionViaGemini(snapshotFileName, videoFileName, cameraName) {
+export async function getVideoDescriptionViaGemini(videoFileName, cameraName) {
     const keyCount = activeGeminiKeyManager.getKeyCount();
     if (keyCount === 0) {
-        logger.error('No Gemini keys configured, falling back to TogetherAI.');
-        return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
+        throw new Error('No Gemini keys configured.');
     }
 
     for (let attempt = 0; attempt < keyCount; attempt++) {
@@ -181,8 +205,7 @@ export async function getVideoDescriptionViaGemini(snapshotFileName, videoFileNa
         }
     }
 
-    logger.error('All Gemini keys failed for video, falling back to TogetherAI snapshot.');
-    return await getSnapshotDescriptionViaTogetherAI(snapshotFileName, cameraName);
+    throw new Error('All Gemini keys failed to describe the video.');
 }
 
 async function uploadToGemini(fileName, mimeType = "video/mp4") {

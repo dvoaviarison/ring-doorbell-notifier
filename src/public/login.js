@@ -8,6 +8,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const mfaCode = document.getElementById('ringMfaCode');
   const email = document.getElementById('ringEmail');
   const password = document.getElementById('ringPassword');
+  const togglePasswordButton = document.getElementById('toggleRingPassword');
+  const passwordEye = document.getElementById('ringPasswordEye');
+  const passwordEyeOff = document.getElementById('ringPasswordEyeOff');
   const submitButton = document.getElementById('submitRingLogin');
   const errorBox = document.getElementById('ringLoginError');
   const connectionStatus = document.getElementById('ringConnectionStatus');
@@ -27,6 +30,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLoginButton.textContent = form.classList.contains('d-none')
       ? 'Connect Ring account'
       : 'Hide Ring account form';
+  });
+
+  togglePasswordButton.addEventListener('click', () => {
+    const showPassword = password.type === 'password';
+    setPasswordVisibility(showPassword);
   });
 
   form.addEventListener('submit', async (event) => {
@@ -53,6 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (result.authenticated) {
         updateConnectionStatus(true);
         form.reset();
+        setPasswordVisibility(false);
         form.classList.add('d-none');
         showLoginButton.textContent = 'Reconnect Ring account';
         requiresMfa = false;
@@ -103,5 +112,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     connectionStatus.classList.toggle('text-success', connected);
     connectionStatus.classList.toggle('text-danger', !connected);
     showLoginButton.textContent = connected ? 'Reconnect Ring account' : 'Connect Ring account';
+  }
+
+  function setPasswordVisibility(visible) {
+    password.type = visible ? 'text' : 'password';
+    togglePasswordButton.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+    togglePasswordButton.setAttribute('aria-pressed', String(visible));
+    passwordEye.hidden = visible;
+    passwordEyeOff.hidden = !visible;
   }
 });

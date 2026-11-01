@@ -39,9 +39,9 @@ describe('getSnapshotDescriptionViaGemini', () => {
 });
 
 describe('getVideoDescriptionViaGemini', () => {
-    test('should describe the snapshot via Gemini AI', async () => {
+    test('should describe the video via Gemini AI', async () => {
         // Act
-        const result = await getVideoDescriptionViaGemini('snapshot.test.png', 'recording.test.mp4', 'Front Door');
+        const result = await getVideoDescriptionViaGemini('recording.test.mp4', 'Front Door');
 
         // Assert
         logger.info(result);

@@ -14,18 +14,34 @@ jest.mock('../helpers/messageHelper/index.mjs', () => ({
     formatMessage: jest.fn((body) => `@channel: ${body}`)
 }));
 
+jest.mock('../helpers/aiHelper/index.mjs', () => ({
+    getAIPoweredVideoDescription: jest.fn()
+}));
+
 import { handleRingNotification } from './index.mjs';
 import { sendSlackNotificationWithVideo } from '../helpers/notificationHelper/index.mjs';
 import { uploadFileToMega } from '../helpers/uploadHelper/index.mjs';
 import { formatMessage } from '../helpers/messageHelper/index.mjs';
+import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
 
 describe('handleRingNotification', () => {
+    const previousAiEnabled = process.env.APP_ENABLE_AI;
+
     beforeEach(() => {
         process.env.APP_RECORDING_FOLDER = '/recordings';
+        process.env.APP_ENABLE_AI = 'false';
         jest.clearAllMocks();
     });
 
-    it('prepares the message while recording, then uploads the video to Mega and Slack concurrently', async () => {
+    afterAll(() => {
+        if (previousAiEnabled === undefined) {
+            delete process.env.APP_ENABLE_AI;
+        } else {
+            process.env.APP_ENABLE_AI = previousAiEnabled;
+        }
+    });
+
+    it('sends the Slack video without waiting for the independent Mega upload', async () => {
         let resolveRecording;
         let resolveMega;
         let resolveSlack;
@@ -51,7 +67,6 @@ describe('handleRingNotification', () => {
         const notificationPromise = handleRingNotification(camera, notification);
         const videoFileName = 'Front door-2026-11-01_120000.mp4';
 
-        expect(formatMessage).toHaveBeenCalledWith('Motion detected');
         expect(camera.recordToFile).toHaveBeenCalledWith(
             `/recordings/${videoFileName}`,
             10
@@ -62,14 +77,71 @@ describe('handleRingNotification', () => {
         resolveRecording();
         await new Promise(setImmediate);
 
+        expect(formatMessage).toHaveBeenCalledWith('Motion detected');
         expect(uploadFileToMega).toHaveBeenCalledWith(videoFileName);
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
             '@channel: Motion detected',
             videoFileName
         );
 
-        resolveMega('https://mega.example/video');
         resolveSlack({});
         await expect(notificationPromise).resolves.toBe('@channel: Motion detected');
+        resolveMega('https://mega.example/video');
+    });
+
+    it('uses the AI description as the Slack video message when AI is enabled', async () => {
+        process.env.APP_ENABLE_AI = 'true';
+        let resolveDescription;
+        getAIPoweredVideoDescription.mockReturnValue(new Promise((resolve) => {
+            resolveDescription = resolve;
+        }));
+        uploadFileToMega.mockResolvedValue('https://mega.example/video');
+        sendSlackNotificationWithVideo.mockResolvedValue({});
+
+        const camera = {
+            name: 'Front door',
+            recordToFile: jest.fn().mockResolvedValue(undefined)
+        };
+        const notification = {
+            android_config: { body: 'Motion detected' }
+        };
+
+        const notificationPromise = handleRingNotification(camera, notification);
+        await new Promise(setImmediate);
+
+        expect(uploadFileToMega).toHaveBeenCalledWith('Front door-2026-11-01_120000.mp4');
+        expect(getAIPoweredVideoDescription).toHaveBeenCalledWith(
+            'Front door-2026-11-01_120000.mp4',
+            'Front door'
+        );
+        expect(sendSlackNotificationWithVideo).not.toHaveBeenCalled();
+
+        resolveDescription('A person is at the front door.');
+        await notificationPromise;
+
+        expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
+            '@channel: A person is at the front door.',
+            'Front door-2026-11-01_120000.mp4'
+        );
+    });
+
+    it('sends the Slack video even when the Mega upload fails', async () => {
+        uploadFileToMega.mockRejectedValue(new Error('Mega unavailable'));
+        sendSlackNotificationWithVideo.mockResolvedValue({});
+
+        const camera = {
+            name: 'Front door',
+            recordToFile: jest.fn().mockResolvedValue(undefined)
+        };
+        const notification = {
+            android_config: { body: 'Motion detected' }
+        };
+
+        await expect(handleRingNotification(camera, notification))
+            .resolves.toBe('@channel: Motion detected');
+        expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
+            '@channel: Motion detected',
+            'Front door-2026-11-01_120000.mp4'
+        );
     });
 });
