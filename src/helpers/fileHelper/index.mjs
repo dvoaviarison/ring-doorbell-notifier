@@ -58,7 +58,9 @@ export function purgeLocalFiles(
             if (extensions.includes(fileExtension) && !isUploadPending(filePath)) {
                 fs.unlink(filePath, (err) => {
                     if (err) {
-                        logger.error(`Error deleting file: ${err}`);
+                        if (err.code !== 'ENOENT') {
+                            logger.error(`Error deleting file: ${err}`);
+                        }
                         return;
                     }
                     else {

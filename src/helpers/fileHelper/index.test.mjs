@@ -1,7 +1,8 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { updateEnvValue } from './index.mjs';
+import { logger } from '../logHelper/index.mjs';
+import { purgeLocalFiles, updateEnvValue } from './index.mjs';
 
 describe('updateEnvValue', () => {
   let directory;
@@ -13,6 +14,28 @@ describe('updateEnvValue', () => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ring-notifier-env-'));
     envPath = path.join(directory, '.env');
     fs.writeFileSync(envPath, 'APP_SETTING=value\n');
+  });
+
+  describe('purgeLocalFiles', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    test('ignores a file already removed by a concurrent cleanup', async () => {
+      const alreadyDeleted = Object.assign(new Error('File not found'), { code: 'ENOENT' });
+      const logError = jest.spyOn(logger, 'error');
+      jest.spyOn(fs, 'readdir').mockImplementation((_folder, callback) => {
+        callback(null, ['recording.mp4']);
+      });
+      jest.spyOn(fs, 'unlink').mockImplementation((_filePath, callback) => {
+        callback(alreadyDeleted);
+      });
+
+      purgeLocalFiles(undefined, '/recordings');
+      await new Promise(setImmediate);
+
+      expect(logError).not.toHaveBeenCalled();
+    });
   });
 
   afterEach(() => {
