@@ -128,14 +128,19 @@ app.post('/update-ai-type', (req, res) => {
 });
 
 // POST endpoint to force notification for slack
-app.post('/capture', async (req, res) => {
-  try {
-    const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
-    await capture(cameraName);
-    res.status(200).send('Capture on demand complete. Notification will be sent soon!')
-  } catch (error) {
-    res.status(500).send(error.message);
+app.post('/capture', (req, res) => {
+  const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
+  if (typeof cameraName !== 'string' || !cameraName.trim()) {
+    return res.status(400).send('Select a camera before starting a capture.');
   }
+  if (!ringApi) {
+    return res.status(503).send('Ring is not connected. Connect your account in Settings first.');
+  }
+
+  void capture(cameraName.trim()).catch((error) => {
+    logger.error(`Background capture failed for ${cameraName}:`, error);
+  });
+  return res.status(202).send('Capture started. Recording and Slack delivery are continuing in the background.');
 });
 
 // GET endpoint to expose camera names

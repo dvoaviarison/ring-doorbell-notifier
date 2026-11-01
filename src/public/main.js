@@ -37,7 +37,7 @@ async function callCapture() {
     document.getElementById('result-capture').innerText = 'Please select a camera.';
     return;
   }
-  document.getElementById('result-capture').innerText = 'Sending...';
+  document.getElementById('result-capture').innerText = 'Starting capture...';
   try {
     const res = await fetch('/capture', {
       method: 'POST',
@@ -45,9 +45,11 @@ async function callCapture() {
       body: JSON.stringify({ cameraName })
     });
     const text = await res.text();
-    document.getElementById('result-capture').innerText = text;
+    document.getElementById('result-capture').innerText = res.ok
+      ? text
+      : `Could not start capture: ${text}`;
   } catch (err) {
-    document.getElementById('result-capture').innerText = 'Error: ' + err;
+    document.getElementById('result-capture').innerText = 'Could not contact the server: ' + err.message;
   }
 }
 
