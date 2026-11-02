@@ -26,32 +26,8 @@ export async function takeSnapshotFromVideo(videoFileName, snapshotFileName) {
 }
 
 export async function recordVideoFromCamera(camera, videoFileName, recordingDurationSec) {
-    const stream = await camera.streamVideo({
-        input: ['-thread_queue_size', '512', '-fflags', '+genpts'],
-        output: [
-            '-t',
-            recordingDurationSec.toString(),
-            `${env.APP_RECORDING_FOLDER}/${videoFileName}`
-        ]
-    });
-
-    await new Promise((resolve, reject) => {
-        let subscription;
-        let settled = false;
-        const unsubscribe = () => subscription?.unsubscribe();
-        const finish = (callback, value) => {
-            settled = true;
-            unsubscribe();
-            callback(value);
-        };
-
-        subscription = stream.onCallEnded.subscribe({
-            next: () => finish(resolve),
-            error: (error) => finish(reject, error)
-        });
-
-        if (settled) {
-            unsubscribe();
-        }
-    });
+    return await camera.recordToFile(
+        `${env.APP_RECORDING_FOLDER}/${videoFileName}`,
+        recordingDurationSec
+    );
 }
