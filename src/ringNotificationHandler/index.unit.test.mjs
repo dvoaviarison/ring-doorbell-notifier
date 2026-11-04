@@ -15,7 +15,7 @@ jest.mock('../helpers/uploadHelper/index.mjs', () => ({
 }));
 
 jest.mock('../helpers/messageHelper/index.mjs', () => ({
-    formatMessage: jest.fn((body) => `@channel: ${body}`)
+    formatMessage: jest.fn((body, recordingUrl, cameraName) => `@channel: <ring://|${cameraName}> ${body}`)
 }));
 
 jest.mock('../helpers/aiHelper/index.mjs', () => ({
@@ -89,10 +89,10 @@ describe('handleRingNotification', () => {
         resolveRecording();
         await new Promise(setImmediate);
 
-        expect(formatMessage).toHaveBeenCalledWith('Motion detected');
+        expect(formatMessage).toHaveBeenCalledWith('Motion detected', undefined, 'Front door');
         expect(uploadFileToMega).toHaveBeenCalledWith(videoFileName);
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
-            '@channel: Motion detected',
+            '@channel: <ring://|Front door> Motion detected',
             videoFileName
         );
         expect(trackPendingUpload).toHaveBeenCalledWith(`/recordings/${videoFileName}`);
@@ -100,7 +100,7 @@ describe('handleRingNotification', () => {
         expect(purgeLocalFiles).not.toHaveBeenCalled();
 
         resolveSlack({});
-        await expect(notificationPromise).resolves.toBe('@channel: Motion detected');
+        await expect(notificationPromise).resolves.toBe('@channel: <ring://|Front door> Motion detected');
         expect(trackPendingUpload.mock.results[0].value).toHaveBeenCalledTimes(1);
         expect(purgeLocalFiles).toHaveBeenCalled();
         resolveMega('https://mega.example/video');
@@ -138,7 +138,7 @@ describe('handleRingNotification', () => {
         await notificationPromise;
 
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
-            '@channel: A person is at the front door.',
+            '@channel: <ring://|Front door> A person is at the front door.',
             'Front door-2026-11-01_120000.mp4'
         );
     });
@@ -157,9 +157,9 @@ describe('handleRingNotification', () => {
         };
 
         await expect(handleRingNotification(camera, notification))
-            .resolves.toBe('@channel: Motion detected');
+            .resolves.toBe('@channel: <ring://|Front door> Motion detected');
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
-            '@channel: Motion detected',
+            '@channel: <ring://|Front door> Motion detected',
             'Front door-2026-11-01_120000.mp4'
         );
     });

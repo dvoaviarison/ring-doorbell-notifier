@@ -34,7 +34,7 @@ export async function handleRingNotification(camera, notif) {
         : Promise.resolve(notif.android_config.body);
     const messageBody = await descriptionPromise;
 
-    const message = formatMessage(messageBody);
+    const message = formatMessage(messageBody, undefined, camera.name);
     logger.info('Sending Slack notification with video...');
     try {
         await sendSlackNotificationWithVideo(message, videoFileName);
