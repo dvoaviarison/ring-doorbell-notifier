@@ -27,7 +27,9 @@ By running as a service, the app would auto-restart in case of crash.
 docker compose pull
 docker compose up -d
 ```
-- Compose pulls the latest published image from Docker Hub. The published image supports `amd64` and 64-bit Raspberry Pi (`arm64`). After changes to the image-publishing workflow are pushed to `main` and its build finishes, update the Pi with `docker compose pull && docker compose up -d`. Open `http://<raspberry-pi-address>:<APP_SERVER_PORT>` (default port `3600`). Recordings are kept in a Docker-managed volume. Compose checks Docker Hub for a newer image whenever the service starts.
+- Compose pulls the latest published image from Docker Hub. The published image supports `amd64` and 64-bit Raspberry Pi (`arm64`). Watchtower checks for updates every five minutes and restarts the app when a new image is available. Open `http://<raspberry-pi-address>:<APP_SERVER_PORT>` (default port `3600`). Recordings are kept in a Docker-managed volume.
+- The Compose service uses the maintained `nickfedor/watchtower` image; the original `containrrr/watchtower` image may use a Docker API client too old for current Docker Engine versions.
+- Watchtower requires access to `/var/run/docker.sock` so it can update containers. This grants it broad control over the Docker host; only use this configuration on a trusted machine.
 - To view logs or stop the app:
 ```sh
 docker compose logs -f

@@ -4,6 +4,8 @@ services:
     pull_policy: always
     restart: unless-stopped
     init: true
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
     env_file:
       - .env
     environment:
@@ -23,6 +25,17 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  watchtower:
+    image: nickfedor/watchtower:latest
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: "300"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   recordings:
