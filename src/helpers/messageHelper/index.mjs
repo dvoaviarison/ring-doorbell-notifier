@@ -1,7 +1,6 @@
-export function formatMessage(mainMessage, recordingUrl, cameraName) {
-    const cameraLink = cameraName ? `<ring://|${cameraName}> ` : '';
+export function formatMessage(mainMessage, recordingUrl) {
     const message = recordingUrl
-        ? `@channel: ${cameraLink}${mainMessage} <${recordingUrl}|View recording>`
-        : `@channel: ${cameraLink}${mainMessage}`;
+        ? `@channel: ${mainMessage} <${recordingUrl}|View recording>`
+        : `@channel: ${mainMessage}`;
     return message;
 }
