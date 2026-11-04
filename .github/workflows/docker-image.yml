@@ -66,6 +66,7 @@ jobs:
         run: gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --generate-notes --target "$GITHUB_SHA"
 
   deploy-render:
+    if: ${{ false }}
     needs: docker
     runs-on: ubuntu-latest
     environment:
