@@ -20,12 +20,18 @@ Simple, LLM/AI powered ([ollama](https://ollama.com), [together-ai](https://api.
 - To view running services: `npm run list-services`
 By running as a service, the app would auto-restart in case of crash.
 
-## How to run in docker (need docker desktop installed)
-- Like the above, fill in the variables in `.env.sample` then rename it to `.env`.
-- Run the following
+## How to run with Docker Compose
+- Copy `.env.sample` to `.env` and fill in the required values, including `MONGO_DB_CONNECTION_STRING` and a long random `SESSION_SECRET`.
+- From the project directory, build and start the app:
 ```sh
-docker build -t ring-doorbell-notifier .
-docker run -d --restart always ring-doorbell-notifier 
+docker compose pull
+docker compose up -d
+```
+- Compose pulls the latest published image from Docker Hub. The published image supports `amd64` and 64-bit Raspberry Pi (`arm64`). After changes to the image-publishing workflow are pushed to `main` and its build finishes, update the Pi with `docker compose pull && docker compose up -d`. Open `http://<raspberry-pi-address>:<APP_SERVER_PORT>` (default port `3600`). Recordings are kept in a Docker-managed volume. Compose checks Docker Hub for a newer image whenever the service starts.
+- To view logs or stop the app:
+```sh
+docker compose logs -f
+docker compose down
 ```
 - To create a linux build and push to dockerhub. You then can deploy it in a free host like [railway](https://railway.app/dashboard) or [render](https://dashboard.render.com). Replace your username and the tag (e.g. v1.2.0)
 ```sh
