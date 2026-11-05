@@ -4,18 +4,6 @@ import { logger } from "../logHelper/index.mjs";
 
 const { env } = process;
 
-export async function sendSlackNotificationWithSnapshot(message, snapShotFileName) {
-    const slackClient = new WebClient(env.SLACK_BOT_TOKEN);
-    const filePath = `${env.APP_RECORDING_FOLDER}/${snapShotFileName}`;
-    const res = await slackClient.filesUploadV2({
-        channel_id: env.SLACK_CHANNEL_ID,
-        initial_comment: message,
-        file: filePath,
-        filename: snapShotFileName,
-    });
-    return res;
-}
-
 export async function sendSlackNotificationWithVideo(message, videoFileName) {
     const slackClient = new WebClient(env.SLACK_BOT_TOKEN);
     const filePath = `${env.APP_RECORDING_FOLDER}/${videoFileName}`;

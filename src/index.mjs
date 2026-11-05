@@ -110,21 +110,9 @@ app.post('/update-slack-channel', (req, res) => {
 });
 
 // POST endpoint to update slack channel ID
-app.post('/update-snapshot-time', (req, res) => {
-  const snapshotTime = req.body.snapshotTime ?? req.body.text;
-  updateEnvFile({ key: 'APP_SNAPSHOT_TIME_SEC', value: snapshotTime }, res);
-});
-
-// POST endpoint to update slack channel ID
 app.post('/update-user-prompt', (req, res) => {
   const userPrompt = req.body.userPrompt ?? req.body.text;
   updateEnvFile({ key: 'APP_AI_USER_PROMPT', value: userPrompt }, res);
-});
-
-// POST endpoint to update AI type: ollama|gemini|together-ai
-app.post('/update-ai-type', (req, res) => {
-  const aiType = req.body.aiType ?? req.body.text;
-  updateEnvFile({ key: 'APP_AI_TYPE', value: aiType }, res);
 });
 
 // POST endpoint to force notification for slack

@@ -2,7 +2,6 @@ import crypto from 'crypto';
 import { logger } from '../logHelper/index.mjs';
 import session from 'express-session';
 import { RingRestClient } from 'ring-client-api/rest-client';
-import { updateEnvValue } from '../fileHelper/index.mjs';
 import { storeRefreshToken } from '../dbHelper/index.mjs';
 
 export function setupSession(app) {
@@ -132,7 +131,6 @@ async function completeRingLogin(req, res, client, onRingLogin) {
 
   try {
     await storeRefreshToken(client.refreshToken);
-    updateEnvValue('RING_REFRESH_TOKEN', client.refreshToken);
     await onRingLogin(client.refreshToken);
   } catch (error) {
     logger.error('Ring token could not be saved or the service could not be initialized:', error);
@@ -183,7 +181,7 @@ function isSlackRequestValid(req) {
 }
 
 function ensureAuthenticated(req, res, next, isRingConnected) {
-  // Bypass Google auth for Slack bot requests
+  // Bypass session authentication for valid Slack bot requests
   if (isSlackRequestValid(req)) {
     logger.info('Bypassing auth for Slack bot request');
     return next();

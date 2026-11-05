@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { purgeLocalFiles, updateEnvValue } from './helpers/fileHelper/index.mjs';
+import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { handleRingNotification } from "./ringNotificationHandler/index.mjs";
 import { stopProcessInMs } from "./helpers/processHelper/index.mjs";
 import { logger } from "./helpers/logHelper/index.mjs";
@@ -25,8 +25,7 @@ export async function run(ringApi) {
 
             try {
                 await storeRefreshToken(newRefreshToken);
-                updateEnvValue('RING_REFRESH_TOKEN', newRefreshToken);
-                logger.info('Ring refresh token updated in the database and process environment.');
+                logger.info('Ring refresh token updated in the database.');
             } catch (error) {
                 logger.error('Could not persist the updated Ring refresh token:', error);
             }

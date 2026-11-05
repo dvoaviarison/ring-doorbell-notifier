@@ -6,7 +6,7 @@ import { getLoggedInRingApi } from '../helpers/ringHelper/index.mjs';
 const { env } = process;
 
 describe('handleRingNotification', () => {
-    it('should be able to record, snapshot, upload and slack notify', async () => {
+    it('should be able to record, upload and slack notify', async () => {
       // Arrange
       const ringApi = getLoggedInRingApi();;
       const locations = await ringApi.getLocations();

@@ -2,10 +2,6 @@ jest.mock('ring-client-api/rest-client', () => ({
     RingRestClient: jest.fn()
 }));
 
-jest.mock('../fileHelper/index.mjs', () => ({
-    updateEnvValue: jest.fn()
-}));
-
 jest.mock('../dbHelper/index.mjs', () => ({
     storeRefreshToken: jest.fn()
 }));

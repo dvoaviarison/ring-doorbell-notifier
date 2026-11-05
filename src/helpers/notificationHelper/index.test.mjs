@@ -1,17 +1,23 @@
-import { sendSlackNotificationWithSnapshot } from './index.mjs';
-import { getSnapshotDescriptionViaOllama } from '../aiHelper/index.mjs';
+jest.mock('@slack/web-api', () => ({
+  WebClient: jest.fn().mockImplementation(() => ({
+    filesUploadV2: jest.fn().mockResolvedValue({ ok: true })
+  }))
+}));
 
-describe('sendSlackNotificationWithSnapshot', () => {
-  it('should upload a file to Slack', async () => {
-    // Arrange
-    const snapShotFileName = 'snapshot.test.png';
-    var description = await getSnapshotDescriptionViaOllama(snapShotFileName, 'Front Door');
-    const message = `@channel: ${description} <http://google.com|View recording>`;
+import { WebClient } from '@slack/web-api';
+import { sendSlackNotificationWithVideo } from './index.mjs';
 
-    // Act
-    var res = await sendSlackNotificationWithSnapshot(message, snapShotFileName);
+describe('sendSlackNotificationWithVideo', () => {
+  it('uploads the recorded video to Slack', async () => {
+    const result = await sendSlackNotificationWithVideo('Motion detected', 'doorbell.mp4');
 
-    // Assert
-    expect(res.ok).toBe(true);
+    expect(result).toEqual({ ok: true });
+    expect(WebClient).toHaveBeenCalledWith(process.env.SLACK_BOT_TOKEN);
+    expect(WebClient.mock.results[0].value.filesUploadV2).toHaveBeenCalledWith({
+      channel_id: process.env.SLACK_CHANNEL_ID,
+      initial_comment: 'Motion detected',
+      file: `${process.env.APP_RECORDING_FOLDER}/doorbell.mp4`,
+      filename: 'doorbell.mp4'
+    });
   });
 });
