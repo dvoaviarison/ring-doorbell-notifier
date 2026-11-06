@@ -213,6 +213,7 @@ main.container {
   background: #289fc0;
 }
 .timeline-thumbnail {
+  position: relative;
   display: grid;
   width: 6.1rem;
   aspect-ratio: 16 / 9;
@@ -221,7 +222,15 @@ main.container {
   border-radius: 0.45rem;
   background: linear-gradient(140deg, #343a40, #68757b 54%, #273139);
 }
+.timeline-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .timeline-play-icon {
+  z-index: 1;
   display: grid;
   width: 2rem;
   height: 2rem;
