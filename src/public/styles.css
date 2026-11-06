@@ -157,7 +157,7 @@ main.container {
   position: absolute;
   top: 0.5rem;
   bottom: 1.5rem;
-  left: 6.7rem;
+  left: 5.7rem;
   width: 0.35rem;
   border-radius: 1rem;
   background: #e5e7e9;
@@ -170,7 +170,7 @@ main.container {
   position: relative;
   display: grid;
   min-height: 6rem;
-  grid-template-columns: 5.2rem 1.5rem minmax(0, 1fr);
+  grid-template-columns: 4.2rem 1.5rem minmax(0, 1fr);
   align-items: center;
   column-gap: 0.4rem;
 }
@@ -331,11 +331,11 @@ main.container {
     min-height: 11rem;
   }
   .timeline-item {
-    grid-template-columns: 4.5rem 1.2rem minmax(0, 1fr);
+    grid-template-columns: 3.8rem 1.2rem minmax(0, 1fr);
     column-gap: 0.3rem;
   }
   .event-timeline::before {
-    left: 5.6rem;
+    left: 4.9rem;
   }
   .timeline-event.has-preview {
     grid-template-columns: 5.25rem minmax(0, 1fr);
