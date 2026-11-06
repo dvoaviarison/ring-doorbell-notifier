@@ -8,10 +8,12 @@ import { contextMiddleware } from './helpers/contextHelper/index.mjs';
 import { setupAuth, setupSession, authMiddleware } from './helpers/authHelper/index.mjs';
 import {
   deletePushSubscription,
+  getVideoEventMegaLink,
   getVideoEventsForDay,
   storePushSubscription
 } from './helpers/dbHelper/index.mjs';
 import { getPushConfiguration } from './helpers/pushNotificationHelper/index.mjs';
+import { openMegaVideoStream } from './helpers/videoStreamHelper/index.mjs';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -179,6 +181,47 @@ app.get('/events', async (req, res) => {
   } catch (error) {
     logger.error('Error fetching video events:', error);
     res.status(500).json({ error: 'Could not load video events.' });
+  }
+});
+
+app.get('/events/:id/video', async (req, res) => {
+  try {
+    const megaLink = await getVideoEventMegaLink(req.params.id);
+    if (!megaLink) {
+      return res.status(404).send('Video event not found.');
+    }
+
+    const url = new URL(megaLink);
+    if (
+      url.protocol !== 'https:' ||
+      url.port ||
+      !['mega.nz', 'mega.co.nz'].includes(url.hostname) ||
+      !/^\/file\/[A-Za-z0-9_-]+$/.test(url.pathname) ||
+      !/^[A-Za-z0-9_-]+$/.test(url.hash.slice(1))
+    ) {
+      return res.status(502).send('The saved MEGA link is not a supported video link.');
+    }
+
+    const { stream, statusCode, headers } = await openMegaVideoStream(megaLink, req.headers.range);
+    res.status(statusCode).set(headers);
+    stream.on('error', (error) => {
+      logger.error('Failed to stream video from MEGA:', error);
+      if (res.headersSent) {
+        res.destroy(error);
+      } else {
+        res.status(502).end('Could not stream video from MEGA.');
+      }
+    });
+    res.on('close', () => {
+      if (!stream.destroyed) stream.destroy();
+    });
+    stream.pipe(res);
+  } catch (error) {
+    if (error.statusCode === 416) {
+      return res.status(416).set('Content-Range', error.contentRange).end();
+    }
+    logger.error('Error opening video stream:', error);
+    return res.status(502).send('Could not open video stream.');
   }
 });
 

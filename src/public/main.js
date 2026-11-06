@@ -91,6 +91,8 @@ async function fetchEvents() {
 
 let selectedEventDay = new Date().toISOString().slice(0, 10);
 let eventFetchId = 0;
+let currentEvents = [];
+let selectedEventIndex = -1;
 let pushRegistration;
 let pushSubscription;
 let pushPublicKey;
@@ -104,7 +106,14 @@ function updateEventDayNavigation() {
     dateStyle: 'full',
     timeZone: 'UTC'
   }).format(date);
-  dayLabel.textContent = selectedEventDay === today ? `Today · ${formattedDate}` : formattedDate;
+  dayLabel.textContent = selectedEventDay === today
+    ? 'Today'
+    : selectedEventDay === new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      ? 'Yesterday'
+      : formattedDate;
+  const datePicker = document.getElementById('eventDatePicker');
+  datePicker.value = selectedEventDay;
+  datePicker.max = today;
   document.getElementById('nextEventDayBtn').disabled = selectedEventDay >= today;
 }
 
@@ -120,71 +129,140 @@ function changeEventDay(offset) {
 
 function renderEvents(feed, events) {
   feed.textContent = '';
+  currentEvents = events;
+  selectedEventIndex = events.length ? 0 : -1;
+  renderSelectedEvent();
+
   if (events.length === 0) {
     const emptyState = document.createElement('div');
     emptyState.className = 'event-empty-state text-center text-muted py-5';
-    emptyState.textContent = 'No video events for this day.';
+    emptyState.textContent = 'No events recorded on this day.';
     feed.appendChild(emptyState);
     return;
   }
 
-  events.forEach((event) => {
-    const card = document.createElement('article');
-    card.className = 'event-card card mb-3';
-    const body = document.createElement('div');
-    body.className = 'card-body';
+  events.forEach((event, index) => {
+    const item = document.createElement('article');
+    item.className = 'timeline-item';
+    item.classList.toggle('is-selected', index === selectedEventIndex);
 
-    const heading = document.createElement('div');
-    heading.className = 'd-flex align-items-start justify-content-between gap-3 mb-2';
-    const description = document.createElement('p');
-    description.className = 'event-description mb-0';
-    description.textContent = event.description || 'Camera event';
-    const timestamp = document.createElement('time');
-    timestamp.className = 'event-timestamp text-muted text-nowrap';
-
-    const date = new Date(event.timestamp);
-    if (!Number.isNaN(date.getTime())) {
-      timestamp.dateTime = date.toISOString();
-      timestamp.textContent = new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
+    const time = document.createElement('time');
+    time.className = 'timeline-time';
+    const eventDate = new Date(event.timestamp);
+    if (!Number.isNaN(eventDate.getTime())) {
+      time.dateTime = eventDate.toISOString();
+      time.textContent = new Intl.DateTimeFormat(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
         timeZone: 'UTC'
-      }).format(date) + ' UTC';
+      }).format(eventDate);
     } else {
-      timestamp.textContent = 'Time unavailable';
+      time.textContent = '--:--:--';
     }
 
-    heading.append(description, timestamp);
-    body.appendChild(heading);
+    const marker = document.createElement('span');
+    marker.className = 'timeline-marker';
+    marker.setAttribute('aria-hidden', 'true');
 
-    const videoUrl = getMegaVideoUrl(event.megaLink);
-    if (videoUrl) {
-      const link = document.createElement('a');
-      link.className = 'event-video-link';
-      link.href = videoUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = '▶  Watch video on MEGA';
-      body.appendChild(link);
-    } else {
-      const unavailable = document.createElement('span');
-      unavailable.className = 'text-muted small';
-      unavailable.textContent = 'Video link unavailable';
-      body.appendChild(unavailable);
-    }
+    const selectButton = document.createElement('button');
+    selectButton.type = 'button';
+    selectButton.className = 'timeline-event';
+    selectButton.setAttribute('aria-pressed', String(index === selectedEventIndex));
+    selectButton.addEventListener('click', () => {
+      selectedEventIndex = index;
+      feed.querySelectorAll('.timeline-item').forEach((timelineItem, itemIndex) => {
+        timelineItem.classList.toggle('is-selected', itemIndex === index);
+        timelineItem.querySelector('.timeline-event')
+          .setAttribute('aria-pressed', String(itemIndex === index));
+      });
+      renderSelectedEvent();
+      document.querySelector('.event-viewer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
 
-    card.appendChild(body);
-    feed.appendChild(card);
+    const thumbnail = document.createElement('span');
+    thumbnail.className = 'timeline-thumbnail';
+    thumbnail.setAttribute('aria-hidden', 'true');
+    const playIcon = document.createElement('span');
+    playIcon.className = 'timeline-play-icon';
+    playIcon.textContent = '▶';
+    thumbnail.appendChild(playIcon);
+
+    const description = document.createElement('span');
+    description.className = 'timeline-description';
+    description.textContent = getEventDisplayDescription(event.description);
+
+    selectButton.append(thumbnail, description);
+    item.append(time, marker, selectButton);
+    feed.appendChild(item);
   });
 }
 
-function getMegaVideoUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' ? url.href : null;
-  } catch {
-    return null;
+function renderSelectedEvent() {
+  const playerStage = document.getElementById('selectedEventPlayer');
+  const caption = document.getElementById('selectedEventCaption');
+  playerStage.textContent = '';
+  caption.textContent = '';
+
+  const event = currentEvents[selectedEventIndex];
+  if (!event) {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'event-player-placeholder';
+    const message = document.createElement('span');
+    message.textContent = 'No video events for this day';
+    placeholder.appendChild(message);
+    playerStage.appendChild(placeholder);
+    const emptyCaption = document.createElement('span');
+    emptyCaption.className = 'text-muted';
+    emptyCaption.textContent = 'Choose another day to view events.';
+    caption.appendChild(emptyCaption);
+    return;
   }
+
+  if (typeof event.id === 'string' && /^[a-f\d]{24}$/i.test(event.id)) {
+    const player = document.createElement('video');
+    player.className = 'event-video-player';
+    player.src = `/events/${encodeURIComponent(event.id)}/video`;
+    player.title = `Video: ${getEventDisplayDescription(event.description)}`;
+    player.controls = true;
+    player.playsInline = true;
+    player.preload = 'metadata';
+    playerStage.appendChild(player);
+  } else {
+    const unavailable = document.createElement('div');
+    unavailable.className = 'event-player-placeholder';
+    unavailable.textContent = 'This event does not have a playable video.';
+    playerStage.appendChild(unavailable);
+  }
+
+  const eventTime = new Date(event.timestamp);
+  const eventMeta = document.createElement('div');
+  eventMeta.className = 'selected-event-meta';
+  const description = document.createElement('p');
+  description.className = 'event-description mb-1';
+  description.textContent = getEventDisplayDescription(event.description);
+  const timestamp = document.createElement('time');
+  timestamp.className = 'event-timestamp text-muted';
+  if (!Number.isNaN(eventTime.getTime())) {
+    timestamp.dateTime = eventTime.toISOString();
+    timestamp.textContent = new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'UTC'
+    }).format(eventTime) + ' UTC';
+  } else {
+    timestamp.textContent = 'Time unavailable';
+  }
+  eventMeta.append(description, timestamp);
+  caption.appendChild(eventMeta);
+}
+
+function getEventDisplayDescription(description) {
+  if (typeof description !== 'string' || !description.trim()) {
+    return 'Camera event';
+  }
+  return description.replace(/^\s*@channel\s*:?\s*/i, '');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -197,6 +275,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refreshEventsBtn').addEventListener('click', fetchEvents);
   document.getElementById('previousEventDayBtn').addEventListener('click', () => changeEventDay(-1));
   document.getElementById('nextEventDayBtn').addEventListener('click', () => changeEventDay(1));
+  document.getElementById('eventDatePicker').addEventListener('change', (event) => {
+    const selectedDay = event.currentTarget.value;
+    const today = new Date().toISOString().slice(0, 10);
+    if (selectedDay && selectedDay <= today) {
+      selectedEventDay = selectedDay;
+      fetchEvents();
+    }
+  });
   document.getElementById('home-tab').addEventListener('shown.bs.tab', fetchEvents);
   document.getElementById('settings-tab').addEventListener('shown.bs.tab', fetchCameras);
   initializePushNotifications();

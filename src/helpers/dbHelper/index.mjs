@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { MongoClient, ServerApiVersion } from 'mongodb';
+import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
 import { logger } from "../logHelper/index.mjs";
 
 const { env } = process;
@@ -82,14 +82,36 @@ export async function getVideoEventsForDay(start, end) {
         await client.connect();
         const db = client.db(dbName);
         const collection = db.collection(eventsCollectionName);
-        return await collection.find(
+        const events = await collection.find(
             { timestamp: { $gte: start, $lt: end } },
-            { projection: { _id: 0, timestamp: 1, description: 1, megaLink: 1 } }
+            { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1 } }
         )
             .sort({ timestamp: -1 })
             .toArray();
+        return events.map(({ _id, ...event }) => ({ ...event, id: _id.toString() }));
     } catch (error) {
         logger.error('Error connecting to MongoDB or fetching daily Mega upload events:', error);
+        throw error;
+    } finally {
+        await client.close();
+    }
+}
+
+export async function getVideoEventMegaLink(id) {
+    if (!ObjectId.isValid(id)) {
+        return null;
+    }
+
+    try {
+        await client.connect();
+        const collection = client.db(dbName).collection(eventsCollectionName);
+        const event = await collection.findOne(
+            { _id: new ObjectId(id) },
+            { projection: { _id: 0, megaLink: 1 } }
+        );
+        return typeof event?.megaLink === 'string' ? event.megaLink : null;
+    } catch (error) {
+        logger.error('Error connecting to MongoDB or loading video event:', error);
         throw error;
     } finally {
         await client.close();

@@ -10,12 +10,20 @@ jest.mock('mongodb', () => ({
         deleteOne: jest.fn(),
         close: jest.fn()
     })),
+    ObjectId: Object.assign(
+        jest.fn().mockImplementation((value) => ({
+            value,
+            toString: () => value
+        })),
+        { isValid: jest.fn((value) => /^[a-f\d]{24}$/i.test(value)) }
+    ),
     ServerApiVersion: { v1: 'v1' }
 }));
 
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import {
     getVideoEventsForDay,
+    getVideoEventMegaLink,
     getRefreshToken,
     storeRefreshToken,
     storeVideoEvent,
@@ -32,6 +40,7 @@ const eventCursor = {
 
 describe('Ring refresh token persistence', () => {
     beforeEach(() => {
+        jest.clearAllMocks();
         client.connect.mockResolvedValue(undefined);
         client.db.mockReturnValue(client);
         client.collection.mockReturnValue(client);
@@ -96,19 +105,39 @@ describe('Ring refresh token persistence', () => {
     });
 
     it('loads a selected UTC day of video events newest first', async () => {
-        const events = [{ description: 'Motion detected' }];
+        const events = [{ _id: { toString: () => 'event-id' }, description: 'Motion detected' }];
         const start = new Date('2026-11-06T00:00:00.000Z');
         const end = new Date('2026-11-07T00:00:00.000Z');
         eventCursor.toArray.mockResolvedValue(events);
 
-        await expect(getVideoEventsForDay(start, end)).resolves.toBe(events);
+        await expect(getVideoEventsForDay(start, end)).resolves.toEqual([
+            { id: 'event-id', description: 'Motion detected' }
+        ]);
 
         expect(client.find).toHaveBeenCalledWith(
             { timestamp: { $gte: start, $lt: end } },
-            { projection: { _id: 0, timestamp: 1, description: 1, megaLink: 1 } }
+            { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1 } }
         );
         expect(eventCursor.sort).toHaveBeenCalledWith({ timestamp: -1 });
         expect(client.close).toHaveBeenCalled();
+    });
+
+    it('loads a MEGA link by event id for in-page video playback', async () => {
+        client.findOne.mockResolvedValue({ megaLink: 'https://mega.nz/file/id#key' });
+
+        await expect(getVideoEventMegaLink('0123456789abcdef01234567'))
+            .resolves.toBe('https://mega.nz/file/id#key');
+
+        expect(ObjectId).toHaveBeenCalledWith('0123456789abcdef01234567');
+        expect(client.findOne).toHaveBeenCalledWith(expect.objectContaining({
+            _id: expect.objectContaining({ value: '0123456789abcdef01234567' })
+        }), { projection: { _id: 0, megaLink: 1 } });
+        expect(client.close).toHaveBeenCalled();
+    });
+
+    it('rejects invalid event ids without querying MongoDB', async () => {
+        await expect(getVideoEventMegaLink('not-an-id')).resolves.toBeNull();
+        expect(client.findOne).not.toHaveBeenCalled();
     });
 
     it('upserts browser push subscriptions by endpoint', async () => {

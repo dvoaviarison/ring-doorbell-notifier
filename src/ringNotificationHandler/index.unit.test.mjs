@@ -153,12 +153,12 @@ describe('handleRingNotification', () => {
         );
         await new Promise(setImmediate);
         expect(storeVideoEvent).toHaveBeenCalledWith(
-            '@channel: A person is at the front door.',
+            'A person is at the front door.',
             'https://mega.example/video',
             expect.any(Date)
         );
         expect(notifyPushSubscribers).toHaveBeenCalledWith({
-            description: '@channel: A person is at the front door.',
+            description: 'A person is at the front door.',
             megaLink: 'https://mega.example/video',
             timestamp: expect.any(Date)
         });
@@ -208,7 +208,7 @@ describe('handleRingNotification', () => {
         );
         await new Promise(setImmediate);
         expect(storeVideoEvent).toHaveBeenCalledWith(
-            '@channel: Motion detected',
+            'Motion detected',
             'https://mega.example/video',
             expect.any(Date)
         );

@@ -1,13 +1,14 @@
 # Ring Doorbell Notifier
 Simple, Gemini AI-powered ([Gemini](https://ai.google.dev/gemini-api/docs/models/gemini)) nodejs app that will let you skip the expensive subscription and
 - Record motion videos directly on your **Mega drive**. Mega because it is the easiest and offers the best amount of free storage
+- Browse recorded events by day, jump to dates with the calendar picker, and play MEGA-hosted videos in the app without leaving the page.
 - Send notification to **Slack** with the recorded video attached when motion is detected.
 - Use AI to describe what your camera is seeing
 - With this you can enjoy pretty much the same premium features of ring doorbells for totally FREE.
 <img src="./docs/imgs/slack-notification.jpeg" alt="Slack notification with a video recording" width="400"/>
 
 ## How to run this locally
-- Fill in the required variables in `.env.sample` and save a copy as `.env`. Set `MONGO_DB_CONNECTION_STRING` and a long random `SESSION_SECRET` for web login. `MONGO_DB_EVENTS_COLLECTION_NAME` selects the MongoDB collection for Mega upload events (default: `events`). Each successfully uploaded video is recorded with its UTC timestamp, the exact message sent to Slack, and its Mega link. On Render, set `SESSION_SECRET` under the service's **Environment** settings; without it the app uses a temporary random secret, so sessions are invalidated whenever the server restarts.
+- Fill in the required variables in `.env.sample` and save a copy as `.env`. Set `MONGO_DB_CONNECTION_STRING` and a long random `SESSION_SECRET` for web login. `MONGO_DB_EVENTS_COLLECTION_NAME` selects the MongoDB collection for Mega upload events (default: `events`). Each successfully uploaded video is recorded with its UTC timestamp, the raw event description, and its Mega link. The app applies Slack-specific formatting separately when sending Slack notifications. On Render, set `SESSION_SECRET` under the service's **Environment** settings; without it the app uses a temporary random secret, so sessions are invalidated whenever the server restarts.
 - Use Node.js 22 or newer for Ring push notifications. The Docker image uses Node 22 and pins the Ring push receiver to a version that correctly parses Ring's notification encryption headers.
 - Run `npm install` then `npm start`
 - Open the configured `APP_SERVER_PORT` in a browser. The app automatically reuses the Ring refresh token saved in MongoDB when it remains valid, so you do not need to sign in on each visit or restart. To connect or reconnect, open the **Settings** tab and sign in with your Ring account; if Ring requests two-factor authentication, enter the verification code there. MongoDB is the source of truth for the token, including in container deployments where filesystems may be ephemeral.
