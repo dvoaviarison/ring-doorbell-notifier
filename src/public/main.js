@@ -250,6 +250,9 @@ function renderSelectedEvent() {
     const player = document.createElement('video');
     player.className = 'event-video-player';
     player.src = `/events/${encodeURIComponent(event.id)}/video`;
+    if (typeof event.thumbnailLink === 'string' && event.thumbnailLink) {
+      player.poster = `/events/${encodeURIComponent(event.id)}/thumbnail`;
+    }
     player.title = `Video: ${getEventDisplayDescription(event.description)}`;
     player.controls = true;
     player.playsInline = true;
