@@ -74,9 +74,11 @@ describe('handleRingNotification', () => {
             resolveRecording = resolve;
         });
         recordVideoFromCamera.mockReturnValue(recording);
-        uploadFileToMega.mockReturnValue(new Promise((resolve) => {
-            resolveMega = resolve;
-        }));
+        uploadFileToMega.mockImplementation((fileName) => fileName.endsWith('.jpg')
+            ? Promise.resolve('https://mega.example/thumbnail')
+            : new Promise((resolve) => {
+                resolveMega = resolve;
+            }));
         sendSlackNotificationWithVideo.mockReturnValue(new Promise((resolve) => {
             resolveSlack = resolve;
         }));
@@ -114,6 +116,13 @@ describe('handleRingNotification', () => {
         expect(trackPendingUpload.mock.results[0].value).toHaveBeenCalledTimes(1);
         expect(purgeLocalFiles).toHaveBeenCalled();
         resolveMega('https://mega.example/video');
+        await new Promise(setImmediate);
+        expect(storeVideoEvent).toHaveBeenCalledWith(
+            'Motion detected',
+            'https://mega.example/video',
+            expect.any(Date),
+            videoFileName
+        );
     });
 
     it('uses the AI description as the Slack video message when AI is enabled', async () => {
@@ -155,7 +164,8 @@ describe('handleRingNotification', () => {
         expect(storeVideoEvent).toHaveBeenCalledWith(
             'A person is at the front door.',
             'https://mega.example/video',
-            expect.any(Date)
+            expect.any(Date),
+            'Front door-2026-11-01_120000.mp4'
         );
         expect(notifyPushSubscribers).toHaveBeenCalledWith({
             description: 'A person is at the front door.',
@@ -210,7 +220,8 @@ describe('handleRingNotification', () => {
         expect(storeVideoEvent).toHaveBeenCalledWith(
             'Motion detected',
             'https://mega.example/video',
-            expect.any(Date)
+            expect.any(Date),
+            'Front door-2026-11-01_120000.mp4'
         );
         expect(notifyPushSubscribers).not.toHaveBeenCalled();
     });
@@ -218,7 +229,9 @@ describe('handleRingNotification', () => {
     it('keeps the recording protected from cleanup until Slack succeeds', async () => {
         let rejectSlack;
         const releaseFile = jest.fn();
-        trackPendingUpload.mockReturnValue(releaseFile);
+        trackPendingUpload.mockImplementation((filePath) =>
+            filePath.endsWith('.jpg') ? jest.fn() : releaseFile
+        );
         uploadFileToMega.mockReturnValue(new Promise(() => {}));
         sendSlackNotificationWithVideo.mockReturnValue(new Promise((_, reject) => {
             rejectSlack = reject;

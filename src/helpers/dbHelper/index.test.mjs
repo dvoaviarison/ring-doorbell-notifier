@@ -20,9 +20,30 @@ jest.mock('mongodb', () => ({
     ServerApiVersion: { v1: 'v1' }
 }));
 
+jest.mock('../videoThumbnailHelper/index.mjs', () => ({
+    createVideoThumbnail: jest.fn()
+}));
+
+jest.mock('../uploadHelper/index.mjs', () => ({
+    uploadFileToMega: jest.fn()
+}));
+
+jest.mock('../pendingUploadHelper/index.mjs', () => ({
+    trackPendingUpload: jest.fn(() => jest.fn())
+}));
+
+jest.mock('../fileHelper/index.mjs', () => ({
+    purgeLocalFiles: jest.fn()
+}));
+
 import { MongoClient, ObjectId } from 'mongodb';
+import { createVideoThumbnail } from '../videoThumbnailHelper/index.mjs';
+import { uploadFileToMega } from '../uploadHelper/index.mjs';
+import { trackPendingUpload } from '../pendingUploadHelper/index.mjs';
+import { purgeLocalFiles } from '../fileHelper/index.mjs';
 import {
     getVideoEventsForDay,
+    getVideoEventThumbnailLink,
     getVideoEventMegaLink,
     getRefreshToken,
     storeRefreshToken,
@@ -37,10 +58,12 @@ const eventCursor = {
     sort: jest.fn(),
     toArray: jest.fn()
 };
+const previousRecordingFolder = process.env.APP_RECORDING_FOLDER;
 
 describe('Ring refresh token persistence', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        process.env.APP_RECORDING_FOLDER = '/recordings';
         client.connect.mockResolvedValue(undefined);
         client.db.mockReturnValue(client);
         client.collection.mockReturnValue(client);
@@ -55,6 +78,16 @@ describe('Ring refresh token persistence', () => {
         eventCursor.sort.mockReturnValue(eventCursor);
         eventCursor.toArray.mockResolvedValue([]);
         client.close.mockResolvedValue(undefined);
+        createVideoThumbnail.mockResolvedValue('Front door-2026-11-06_120000.jpg');
+        uploadFileToMega.mockResolvedValue('https://mega.example/thumbnail');
+    });
+
+    afterAll(() => {
+        if (previousRecordingFolder === undefined) {
+            delete process.env.APP_RECORDING_FOLDER;
+        } else {
+            process.env.APP_RECORDING_FOLDER = previousRecordingFolder;
+        }
     });
 
     it('loads the refresh token from MongoDB', async () => {
@@ -92,33 +125,104 @@ describe('Ring refresh token persistence', () => {
     it('stores a video event with a UTC timestamp, Slack description, and Mega link', async () => {
         const timestamp = new Date('2026-11-06T12:00:00.000Z');
 
-        await storeVideoEvent('@channel: Motion detected', 'https://mega.example/video', timestamp);
+        await storeVideoEvent(
+            '@channel: Motion detected',
+            'https://mega.example/video',
+            timestamp,
+            'Front door-2026-11-06_120000.mp4'
+        );
 
         expect(client.insertOne).toHaveBeenCalledWith({
             timestamp,
             description: '@channel: Motion detected',
-            megaLink: 'https://mega.example/video'
+            megaLink: 'https://mega.example/video',
+            thumbnailLink: 'https://mega.example/thumbnail'
         });
+        expect(createVideoThumbnail).toHaveBeenCalledWith('Front door-2026-11-06_120000.mp4');
+        expect(uploadFileToMega).toHaveBeenCalledWith('Front door-2026-11-06_120000.jpg');
+        expect(trackPendingUpload).toHaveBeenCalledWith(
+            expect.stringContaining('Front door-2026-11-06_120000.mp4')
+        );
+        expect(trackPendingUpload).toHaveBeenCalledWith(
+            expect.stringContaining('Front door-2026-11-06_120000.jpg')
+        );
+        expect(purgeLocalFiles).toHaveBeenCalled();
         expect(client.db).toHaveBeenCalledWith('ringnotifier');
         expect(client.collection).toHaveBeenCalledWith('events');
         expect(client.close).toHaveBeenCalled();
     });
 
+    it('stores the event without a thumbnail when thumbnail generation fails', async () => {
+        createVideoThumbnail.mockRejectedValue(new Error('FFmpeg unavailable'));
+
+        await storeVideoEvent(
+            'Motion detected',
+            'https://mega.example/video',
+            new Date('2026-11-06T12:00:00.000Z'),
+            'Front door-2026-11-06_120000.mp4'
+        );
+
+        expect(client.insertOne).toHaveBeenCalledWith({
+            timestamp: new Date('2026-11-06T12:00:00.000Z'),
+            description: 'Motion detected',
+            megaLink: 'https://mega.example/video'
+        });
+        expect(uploadFileToMega).not.toHaveBeenCalled();
+    });
+
+    it('stores the event without a thumbnail when thumbnail upload fails', async () => {
+        uploadFileToMega.mockRejectedValue(new Error('MEGA unavailable'));
+
+        await storeVideoEvent(
+            'Motion detected',
+            'https://mega.example/video',
+            new Date('2026-11-06T12:00:00.000Z'),
+            'Front door-2026-11-06_120000.mp4'
+        );
+
+        expect(client.insertOne).toHaveBeenCalledWith({
+            timestamp: new Date('2026-11-06T12:00:00.000Z'),
+            description: 'Motion detected',
+            megaLink: 'https://mega.example/video'
+        });
+    });
+
     it('loads a selected UTC day of video events newest first', async () => {
-        const events = [{ _id: { toString: () => 'event-id' }, description: 'Motion detected' }];
+        const events = [{
+            _id: { toString: () => 'event-id' },
+            description: 'Motion detected',
+            thumbnailLink: 'https://mega.example/thumbnail'
+        }];
         const start = new Date('2026-11-06T00:00:00.000Z');
         const end = new Date('2026-11-07T00:00:00.000Z');
         eventCursor.toArray.mockResolvedValue(events);
 
         await expect(getVideoEventsForDay(start, end)).resolves.toEqual([
-            { id: 'event-id', description: 'Motion detected' }
+            {
+                id: 'event-id',
+                description: 'Motion detected',
+                thumbnailLink: 'https://mega.example/thumbnail'
+            }
         ]);
 
         expect(client.find).toHaveBeenCalledWith(
             { timestamp: { $gte: start, $lt: end } },
-            { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1 } }
+            { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1, thumbnailLink: 1 } }
         );
         expect(eventCursor.sort).toHaveBeenCalledWith({ timestamp: -1 });
+        expect(client.close).toHaveBeenCalled();
+    });
+
+    it('loads a MEGA thumbnail link by event id', async () => {
+        client.findOne.mockResolvedValue({ thumbnailLink: 'https://mega.nz/file/id#key' });
+
+        await expect(getVideoEventThumbnailLink('0123456789abcdef01234567'))
+            .resolves.toBe('https://mega.nz/file/id#key');
+
+        expect(client.findOne).toHaveBeenCalledWith(
+            { _id: expect.objectContaining({ value: '0123456789abcdef01234567' }) },
+            { projection: { _id: 0, thumbnailLink: 1 } }
+        );
         expect(client.close).toHaveBeenCalled();
     });
 

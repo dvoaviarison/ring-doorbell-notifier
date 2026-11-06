@@ -1,6 +1,6 @@
 import { File } from 'megajs';
 
-export async function openMegaVideoStream(megaLink, rangeHeader) {
+export async function openMegaFileStream(megaLink, rangeHeader, contentType = 'video/mp4') {
     const file = File.fromURL(megaLink);
     await file.loadAttributes();
     if (!Number.isSafeInteger(file.size) || file.size < 0) {
@@ -12,7 +12,7 @@ export async function openMegaVideoStream(megaLink, rangeHeader) {
     const end = range?.end ?? Math.max(file.size - 1, 0);
     const headers = {
         'Accept-Ranges': 'bytes',
-        'Content-Type': 'video/mp4',
+        'Content-Type': contentType,
         'Content-Length': String(file.size === 0 ? 0 : end - start + 1),
         'Cache-Control': 'private, max-age=300'
     };

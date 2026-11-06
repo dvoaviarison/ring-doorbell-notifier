@@ -131,8 +131,6 @@ function changeEventDay(offset) {
 }
 
 function renderEvents(feed, events) {
-  timelinePreviewObserver?.disconnect();
-  timelinePreviewObserver = null;
   feed.textContent = '';
   feed.classList.toggle('is-empty', events.length === 0);
   currentEvents = events;
@@ -155,16 +153,6 @@ function renderEvents(feed, events) {
     emptyState.append(icon, title, message);
     feed.appendChild(emptyState);
     return;
-  }
-
-  if ('IntersectionObserver' in window) {
-    timelinePreviewObserver = new IntersectionObserver((entries, observer) => {
-      entries.forEach(({ isIntersecting, target }) => {
-        if (!isIntersecting) return;
-        observer.unobserve(target);
-        if (target.isConnected) loadTimelinePreview(target);
-      });
-    }, { rootMargin: '200px 0px' });
   }
 
   events.forEach((event, index) => {
@@ -206,74 +194,31 @@ function renderEvents(feed, events) {
       document.querySelector('.event-viewer').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
-    const thumbnail = document.createElement('span');
-    thumbnail.className = 'timeline-thumbnail';
-    thumbnail.setAttribute('aria-hidden', 'true');
-    const preview = document.createElement('img');
-    preview.className = 'timeline-preview';
-    preview.alt = '';
-    preview.hidden = true;
-    const playIcon = document.createElement('span');
-    playIcon.className = 'timeline-play-icon';
-    playIcon.textContent = '▶';
-    thumbnail.append(preview, playIcon);
-
     const description = document.createElement('span');
     description.className = 'timeline-description';
     description.textContent = getEventDisplayDescription(event.description);
 
-    selectButton.append(thumbnail, description);
+    if (typeof event.thumbnailLink === 'string' &&
+        event.thumbnailLink &&
+        /^[a-f\d]{24}$/i.test(event.id ?? '')) {
+      selectButton.classList.add('has-thumbnail');
+      const thumbnail = document.createElement('img');
+      thumbnail.className = 'timeline-thumbnail';
+      thumbnail.alt = '';
+      thumbnail.loading = 'eager';
+      thumbnail.decoding = 'async';
+      thumbnail.src = `/events/${encodeURIComponent(event.id)}/thumbnail`;
+      thumbnail.addEventListener('error', () => {
+        thumbnail.remove();
+        selectButton.classList.remove('has-thumbnail');
+      }, { once: true });
+      selectButton.append(thumbnail);
+    }
+
+    selectButton.append(description);
     item.append(time, marker, selectButton);
     feed.appendChild(item);
-
-    if (timelinePreviewObserver && /^[a-f\d]{24}$/i.test(event.id ?? '')) {
-      thumbnail.dataset.eventId = event.id;
-      timelinePreviewObserver.observe(thumbnail);
-    }
   });
-}
-
-let timelinePreviewObserver;
-
-function loadTimelinePreview(thumbnail) {
-  const eventId = thumbnail.dataset.eventId;
-  if (!eventId) return;
-
-  const video = document.createElement('video');
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = 'metadata';
-
-  const cleanup = () => {
-    video.removeEventListener('loadeddata', captureFrame);
-    video.removeEventListener('error', cleanup);
-    video.removeAttribute('src');
-    video.load();
-  };
-  const captureFrame = () => {
-    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !thumbnail.isConnected) {
-      cleanup();
-      return;
-    }
-
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-      const preview = thumbnail.querySelector('.timeline-preview');
-      preview.src = canvas.toDataURL('image/jpeg', 0.75);
-      preview.hidden = false;
-    } catch (error) {
-      console.warn('Could not generate video thumbnail:', error);
-    } finally {
-      cleanup();
-    }
-  };
-
-  video.addEventListener('loadeddata', captureFrame, { once: true });
-  video.addEventListener('error', cleanup, { once: true });
-  video.src = `/events/${encodeURIComponent(eventId)}/video`;
 }
 
 function renderSelectedEvent() {

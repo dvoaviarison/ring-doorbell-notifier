@@ -9,11 +9,12 @@ import { setupAuth, setupSession, authMiddleware } from './helpers/authHelper/in
 import {
   deletePushSubscription,
   getVideoEventMegaLink,
+  getVideoEventThumbnailLink,
   getVideoEventsForDay,
   storePushSubscription
 } from './helpers/dbHelper/index.mjs';
 import { getPushConfiguration } from './helpers/pushNotificationHelper/index.mjs';
-import { openMegaVideoStream } from './helpers/videoStreamHelper/index.mjs';
+import { openMegaFileStream } from './helpers/videoStreamHelper/index.mjs';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -230,7 +231,7 @@ app.get('/events/:id/video', async (req, res) => {
       return res.status(502).send('The saved MEGA link is not a supported video link.');
     }
 
-    const video = await openMegaVideoStream(megaLink, req.headers.range);
+    const video = await openMegaFileStream(megaLink, req.headers.range);
     stream = video.stream;
     stream.on('error', (error) => {
       if (clientDisconnected || res.destroyed) return;
@@ -256,6 +257,58 @@ app.get('/events/:id/video', async (req, res) => {
     }
     logger.error('Error opening video stream:', error);
     return res.status(502).send('Could not open video stream.');
+  }
+});
+
+app.get('/events/:id/thumbnail', async (req, res) => {
+  let stream;
+  let clientDisconnected = false;
+  res.on('close', () => {
+    if (res.writableFinished) return;
+    clientDisconnected = true;
+    if (stream && !stream.destroyed) stream.destroy();
+  });
+
+  try {
+    const thumbnailLink = await getVideoEventThumbnailLink(req.params.id);
+    if (clientDisconnected || res.destroyed) return;
+    if (!thumbnailLink) {
+      return res.status(404).end();
+    }
+
+    const url = new URL(thumbnailLink);
+    if (
+      url.protocol !== 'https:' ||
+      url.port ||
+      !['mega.nz', 'mega.co.nz'].includes(url.hostname) ||
+      !/^\/file\/[A-Za-z0-9_-]+$/.test(url.pathname) ||
+      !/^[A-Za-z0-9_-]+$/.test(url.hash.slice(1))
+    ) {
+      return res.status(502).end();
+    }
+
+    const thumbnail = await openMegaFileStream(thumbnailLink, undefined, 'image/jpeg');
+    stream = thumbnail.stream;
+    stream.on('error', (error) => {
+      if (clientDisconnected || res.destroyed) return;
+      logger.error('Failed to stream video thumbnail from MEGA:', error);
+      if (res.headersSent) {
+        res.destroy();
+      } else {
+        res.status(502).end();
+      }
+    });
+    if (clientDisconnected || res.destroyed) {
+      if (!stream.destroyed) stream.destroy();
+      return;
+    }
+
+    res.status(thumbnail.statusCode).set(thumbnail.headers);
+    stream.pipe(res);
+  } catch (error) {
+    if (clientDisconnected || res.destroyed) return;
+    logger.error('Error opening video thumbnail:', error);
+    res.status(502).end();
   }
 });
 

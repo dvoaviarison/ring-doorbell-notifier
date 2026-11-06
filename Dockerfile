@@ -1,6 +1,11 @@
 # Use the official Node.js image as the base image
 FROM node:22
 
+# FFmpeg extracts a JPEG preview from each recorded video.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set the working directory
 WORKDIR /app
 

@@ -5,9 +5,9 @@ jest.mock('megajs', () => ({
 }));
 
 import { File } from 'megajs';
-import { openMegaVideoStream } from './index.mjs';
+import { openMegaFileStream } from './index.mjs';
 
-describe('openMegaVideoStream', () => {
+describe('openMegaFileStream', () => {
     const stream = { on: jest.fn() };
     const file = {
         size: 1024,
@@ -24,7 +24,7 @@ describe('openMegaVideoStream', () => {
     });
 
     it('opens the full MEGA video stream', async () => {
-        await expect(openMegaVideoStream('https://mega.nz/file/id#key')).resolves.toEqual({
+        await expect(openMegaFileStream('https://mega.nz/file/id#key')).resolves.toEqual({
             stream,
             statusCode: 200,
             headers: {
@@ -44,7 +44,7 @@ describe('openMegaVideoStream', () => {
     });
 
     it('supports byte-range requests for video playback controls', async () => {
-        await expect(openMegaVideoStream('https://mega.nz/file/id#key', 'bytes=100-199'))
+        await expect(openMegaFileStream('https://mega.nz/file/id#key', 'bytes=100-199'))
             .resolves.toEqual({
                 stream,
                 statusCode: 206,
@@ -65,14 +65,20 @@ describe('openMegaVideoStream', () => {
     });
 
     it('supports suffix byte-range requests', async () => {
-        const result = await openMegaVideoStream('https://mega.nz/file/id#key', 'bytes=-128');
+        const result = await openMegaFileStream('https://mega.nz/file/id#key', 'bytes=-128');
         expect(result.headers['Content-Range']).toBe('bytes 896-1023/1024');
         expect(file.download).toHaveBeenCalledWith(expect.objectContaining({ start: 896, end: 1023 }));
     });
 
     it('rejects unsatisfiable byte ranges', async () => {
-        await expect(openMegaVideoStream('https://mega.nz/file/id#key', 'bytes=2048-'))
+        await expect(openMegaFileStream('https://mega.nz/file/id#key', 'bytes=2048-'))
             .rejects.toMatchObject({ statusCode: 416, contentRange: 'bytes */1024' });
         expect(file.download).not.toHaveBeenCalled();
+    });
+
+    it('sets the content type for a thumbnail response', async () => {
+        const result = await openMegaFileStream('https://mega.nz/file/id#key', undefined, 'image/jpeg');
+
+        expect(result.headers['Content-Type']).toBe('image/jpeg');
     });
 });

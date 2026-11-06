@@ -45,7 +45,7 @@ export async function handleRingNotification(camera, notif) {
 
             try {
                 const description = await descriptionPromise;
-                await storeVideoEvent(description, megaLink, timestamp);
+                await storeVideoEvent(description, megaLink, timestamp, videoFileName);
                 logger.info('Mega upload event saved to MongoDB');
                 await notifyPushSubscribers({ description, megaLink, timestamp });
             } catch (error) {
