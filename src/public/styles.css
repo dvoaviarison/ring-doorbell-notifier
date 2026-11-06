@@ -198,19 +198,31 @@ main.container {
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem;
-  border: 0;
+  border: 1px solid #eceef0;
   border-radius: 0.65rem;
-  background: transparent;
+  background: #fff;
   color: #343a40;
   text-align: left;
+  box-shadow: 0 1px 3px rgba(27, 24, 34, 0.035);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
-.timeline-event:hover,
+.timeline-event:hover {
+  border-color: #e2e4e6;
+  box-shadow: 0 2px 6px rgba(27, 24, 34, 0.07);
+}
 .timeline-event[aria-pressed="true"] {
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(27, 24, 34, 0.09);
+  border-color: #e2e4e6;
+  box-shadow: 0 4px 12px rgba(27, 24, 34, 0.13);
+}
+.timeline-event[aria-pressed="true"]:hover {
+  box-shadow: 0 5px 14px rgba(27, 24, 34, 0.15);
+}
+.timeline-event:focus-visible {
+  outline: 2px solid #72777c;
+  outline-offset: 2px;
 }
 .timeline-item.is-selected .timeline-marker {
-  background: #289fc0;
+  background: #62676c;
 }
 .timeline-event.has-preview {
   grid-template-columns: 6.1rem minmax(0, 1fr);
