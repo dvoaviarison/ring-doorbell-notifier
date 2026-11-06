@@ -198,24 +198,25 @@ function renderEvents(feed, events) {
     description.className = 'timeline-description';
     description.textContent = getEventDisplayDescription(event.description);
 
+    selectButton.classList.add('has-preview');
+    const preview = document.createElement('span');
+    preview.className = 'timeline-preview';
+    preview.setAttribute('aria-hidden', 'true');
+
     if (typeof event.thumbnailLink === 'string' &&
         event.thumbnailLink &&
         /^[a-f\d]{24}$/i.test(event.id ?? '')) {
-      selectButton.classList.add('has-thumbnail');
       const thumbnail = document.createElement('img');
       thumbnail.className = 'timeline-thumbnail';
       thumbnail.alt = '';
       thumbnail.loading = 'eager';
       thumbnail.decoding = 'async';
       thumbnail.src = `/events/${encodeURIComponent(event.id)}/thumbnail`;
-      thumbnail.addEventListener('error', () => {
-        thumbnail.remove();
-        selectButton.classList.remove('has-thumbnail');
-      }, { once: true });
-      selectButton.append(thumbnail);
+      thumbnail.addEventListener('error', () => thumbnail.remove(), { once: true });
+      preview.appendChild(thumbnail);
     }
 
-    selectButton.append(description);
+    selectButton.append(preview, description);
     item.append(time, marker, selectButton);
     feed.appendChild(item);
   });

@@ -212,16 +212,22 @@ main.container {
 .timeline-item.is-selected .timeline-marker {
   background: #289fc0;
 }
-.timeline-event.has-thumbnail {
+.timeline-event.has-preview {
   grid-template-columns: 6.1rem minmax(0, 1fr);
 }
-.timeline-thumbnail {
+.timeline-preview {
   display: block;
   width: 6.1rem;
   min-width: 6.1rem;
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: 0.45rem;
+  background: #17191c;
+}
+.timeline-thumbnail {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
 .timeline-description {
@@ -319,12 +325,12 @@ main.container {
   .event-timeline::before {
     left: 5.6rem;
   }
-  .timeline-event.has-thumbnail {
+  .timeline-event.has-preview {
     grid-template-columns: 5.25rem minmax(0, 1fr);
     gap: 0.55rem;
     padding: 0.4rem;
   }
-  .timeline-thumbnail {
+  .timeline-preview {
     width: 5.25rem;
     min-width: 5.25rem;
   }
