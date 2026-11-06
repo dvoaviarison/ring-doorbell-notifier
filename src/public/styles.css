@@ -24,6 +24,38 @@ main.container {
 .tab-content {
   flex: 1 1 auto;
 }
+.event-card {
+  border: 0;
+  box-shadow: 0 2px 10px rgba(27, 24, 34, 0.08);
+}
+.event-day-navigation {
+  padding: 0.4rem 0;
+}
+.event-description {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.event-timestamp {
+  font-size: 0.8rem;
+}
+.event-video-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.8rem;
+  border-radius: 0.5rem;
+  background: #f0eef5;
+  color: #34303c;
+  font-weight: 600;
+  text-decoration: none;
+}
+.event-video-link:hover {
+  background: #e5e1ed;
+  color: #25222c;
+}
+.event-empty-state {
+  border: 1px dashed #ced4da;
+  border-radius: 0.75rem;
+}
 .login-container {
   min-height: calc(100vh - 56px);
   display: grid;

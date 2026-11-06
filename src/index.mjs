@@ -6,6 +6,12 @@ import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
 import { contextMiddleware } from './helpers/contextHelper/index.mjs';
 import { setupAuth, setupSession, authMiddleware } from './helpers/authHelper/index.mjs';
+import {
+  deletePushSubscription,
+  getVideoEventsForDay,
+  storePushSubscription
+} from './helpers/dbHelper/index.mjs';
+import { getPushConfiguration } from './helpers/pushNotificationHelper/index.mjs';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -150,6 +156,90 @@ app.get('/cameras', async (req, res) => {
     res.status(500).json({ error: 'Could not load Ring cameras.' });
   }
 });
+
+app.get('/events', async (req, res) => {
+  const requestedDay = req.query.day;
+  const day = requestedDay ?? new Date().toISOString().slice(0, 10);
+  if (
+    typeof day !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(day)
+  ) {
+    return res.status(400).json({ error: 'Day must be a date in YYYY-MM-DD format.' });
+  }
+
+  const start = new Date(`${day}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== day) {
+    return res.status(400).json({ error: 'Day must be a valid calendar date.' });
+  }
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+  try {
+    const events = await getVideoEventsForDay(start, end);
+    res.json(events);
+  } catch (error) {
+    logger.error('Error fetching video events:', error);
+    res.status(500).json({ error: 'Could not load video events.' });
+  }
+});
+
+app.get('/push/config', (_req, res) => {
+  res.json(getPushConfiguration());
+});
+
+app.post('/push/subscriptions', async (req, res) => {
+  const subscription = req.body;
+  if (!isValidPushSubscription(subscription)) {
+    return res.status(400).json({ error: 'A valid browser push subscription is required.' });
+  }
+
+  try {
+    await storePushSubscription(subscription);
+    res.status(201).json({ subscribed: true });
+  } catch (error) {
+    logger.error('Error storing browser push subscription:', error);
+    res.status(500).json({ error: 'Could not enable push notifications.' });
+  }
+});
+
+app.delete('/push/subscriptions', async (req, res) => {
+  const endpoint = req.body?.endpoint;
+  if (!isAllowedPushEndpoint(endpoint)) {
+    return res.status(400).json({ error: 'A valid browser push endpoint is required.' });
+  }
+
+  try {
+    await deletePushSubscription(endpoint);
+    res.status(204).end();
+  } catch (error) {
+    logger.error('Error deleting browser push subscription:', error);
+    res.status(500).json({ error: 'Could not disable push notifications.' });
+  }
+});
+
+function isValidPushSubscription(subscription) {
+  return subscription &&
+    isAllowedPushEndpoint(subscription.endpoint) &&
+    typeof subscription.keys?.p256dh === 'string' &&
+    typeof subscription.keys?.auth === 'string' &&
+    subscription.keys.p256dh.length > 0 &&
+    subscription.keys.auth.length > 0;
+}
+
+function isAllowedPushEndpoint(endpoint) {
+  if (typeof endpoint !== 'string' || endpoint.length > 2048) return false;
+  try {
+    const url = new URL(endpoint);
+    if (url.protocol !== 'https:' || url.port || url.username || url.password) return false;
+    const host = url.hostname.toLowerCase();
+    return host === 'fcm.googleapis.com' ||
+      host === 'push.services.mozilla.com' ||
+      host.endsWith('.push.services.mozilla.com') ||
+      host === 'web.push.apple.com' ||
+      host.endsWith('.notify.windows.com');
+  } catch {
+    return false;
+  }
+}
 
 // GET /env?name=ENV_VAR_NAME
 app.get('/env', (req, res) => {

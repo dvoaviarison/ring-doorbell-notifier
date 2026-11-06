@@ -50,6 +50,19 @@ describe('Ring authentication persistence', () => {
         expect(response.redirect).toHaveBeenCalledWith('/#settings');
     });
 
+    it('protects the video event feed when there is no active Ring session', () => {
+        const response = { redirect: jest.fn() };
+
+        authMiddleware(
+            { path: '/events', session: undefined, headers: {} },
+            response,
+            jest.fn(),
+            () => false
+        );
+
+        expect(response.redirect).toHaveBeenCalledWith('/#settings');
+    });
+
     it('reports the active Ring connection even when the browser has no login session', () => {
         const getHandlers = new Map();
         const app = {

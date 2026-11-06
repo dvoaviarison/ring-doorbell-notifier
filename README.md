@@ -7,11 +7,12 @@ Simple, Gemini AI-powered ([Gemini](https://ai.google.dev/gemini-api/docs/models
 <img src="./docs/imgs/slack-notification.jpeg" alt="Slack notification with a video recording" width="400"/>
 
 ## How to run this locally
-- Fill in the required variables in `.env.sample` and save a copy as `.env`. Set `MONGO_DB_CONNECTION_STRING` and a long random `SESSION_SECRET` for web login. On Render, set `SESSION_SECRET` under the service's **Environment** settings; without it the app uses a temporary random secret, so sessions are invalidated whenever the server restarts.
+- Fill in the required variables in `.env.sample` and save a copy as `.env`. Set `MONGO_DB_CONNECTION_STRING` and a long random `SESSION_SECRET` for web login. `MONGO_DB_EVENTS_COLLECTION_NAME` selects the MongoDB collection for Mega upload events (default: `events`). Each successfully uploaded video is recorded with its UTC timestamp, the exact message sent to Slack, and its Mega link. On Render, set `SESSION_SECRET` under the service's **Environment** settings; without it the app uses a temporary random secret, so sessions are invalidated whenever the server restarts.
 - Use Node.js 22 or newer for Ring push notifications. The Docker image uses Node 22 and pins the Ring push receiver to a version that correctly parses Ring's notification encryption headers.
 - Run `npm install` then `npm start`
 - Open the configured `APP_SERVER_PORT` in a browser. The app automatically reuses the Ring refresh token saved in MongoDB when it remains valid, so you do not need to sign in on each visit or restart. To connect or reconnect, open the **Settings** tab and sign in with your Ring account; if Ring requests two-factor authentication, enter the verification code there. MongoDB is the source of truth for the token, including in container deployments where filesystems may be ephemeral.
 - Use HTTPS when exposing the login page outside your local machine so Ring credentials and the session cookie are protected in transit.
+- To enable browser push notifications, generate a VAPID key pair with `npx web-push generate-vapid-keys` and set `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_VAPID_SUBJECT` in the server environment (for example, `mailto:admin@example.com`). Keep the private key secret and stable; changing it requires browsers to subscribe again. Open Settings over HTTPS and enable notifications on each browser/device. On iPhone/iPad, install the site to the Home Screen first. Push notifications are sent after a video is uploaded and its event is saved.
 
 ## How to run as a service using forever
 - Install forever: `npm install forever -g`

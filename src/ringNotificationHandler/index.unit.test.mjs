@@ -26,6 +26,14 @@ jest.mock('../helpers/pendingUploadHelper/index.mjs', () => ({
     trackPendingUpload: jest.fn(() => jest.fn())
 }));
 
+jest.mock('../helpers/dbHelper/index.mjs', () => ({
+    storeVideoEvent: jest.fn()
+}));
+
+jest.mock('../helpers/pushNotificationHelper/index.mjs', () => ({
+    notifyPushSubscribers: jest.fn()
+}));
+
 jest.mock('../helpers/fileHelper/index.mjs', () => ({
     purgeLocalFiles: jest.fn()
 }));
@@ -38,6 +46,8 @@ import { formatMessage } from '../helpers/messageHelper/index.mjs';
 import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
 import { trackPendingUpload } from '../helpers/pendingUploadHelper/index.mjs';
 import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
+import { storeVideoEvent } from '../helpers/dbHelper/index.mjs';
+import { notifyPushSubscribers } from '../helpers/pushNotificationHelper/index.mjs';
 
 describe('handleRingNotification', () => {
     const previousAiEnabled = process.env.APP_ENABLE_AI;
@@ -141,6 +151,17 @@ describe('handleRingNotification', () => {
             '@channel: A person is at the front door.',
             'Front door-2026-11-01_120000.mp4'
         );
+        await new Promise(setImmediate);
+        expect(storeVideoEvent).toHaveBeenCalledWith(
+            '@channel: A person is at the front door.',
+            'https://mega.example/video',
+            expect.any(Date)
+        );
+        expect(notifyPushSubscribers).toHaveBeenCalledWith({
+            description: '@channel: A person is at the front door.',
+            megaLink: 'https://mega.example/video',
+            timestamp: expect.any(Date)
+        });
     });
 
     it('sends the Slack video even when the Mega upload fails', async () => {
@@ -162,6 +183,36 @@ describe('handleRingNotification', () => {
             '@channel: Motion detected',
             'Front door-2026-11-01_120000.mp4'
         );
+        await new Promise(setImmediate);
+        expect(storeVideoEvent).not.toHaveBeenCalled();
+    });
+
+    it('sends the Slack video even when saving the Mega event to MongoDB fails', async () => {
+        uploadFileToMega.mockResolvedValue('https://mega.example/video');
+        storeVideoEvent.mockRejectedValue(new Error('MongoDB unavailable'));
+        sendSlackNotificationWithVideo.mockResolvedValue({});
+
+        const camera = {
+            name: 'Front door',
+            id: 'camera-id'
+        };
+        recordVideoFromCamera.mockResolvedValue(undefined);
+
+        await expect(handleRingNotification(camera, {
+            android_config: { body: 'Motion detected' }
+        })).resolves.toBe('@channel: Motion detected');
+
+        expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
+            '@channel: Motion detected',
+            'Front door-2026-11-01_120000.mp4'
+        );
+        await new Promise(setImmediate);
+        expect(storeVideoEvent).toHaveBeenCalledWith(
+            '@channel: Motion detected',
+            'https://mega.example/video',
+            expect.any(Date)
+        );
+        expect(notifyPushSubscribers).not.toHaveBeenCalled();
     });
 
     it('keeps the recording protected from cleanup until Slack succeeds', async () => {

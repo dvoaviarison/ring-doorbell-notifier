@@ -8,6 +8,8 @@ import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
 import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
 import { trackPendingUpload } from '../helpers/pendingUploadHelper/index.mjs';
 import { logger } from "../helpers/logHelper/index.mjs";
+import { storeVideoEvent } from '../helpers/dbHelper/index.mjs';
+import { notifyPushSubscribers } from '../helpers/pushNotificationHelper/index.mjs';
 
 const { env } = process;
 const recordingDurationSec = 10;
@@ -20,9 +22,7 @@ export async function handleRingNotification(camera, notif) {
     logger.info('Video recorded. Uploading');
 
     const releaseSlackFile = trackPendingUpload(`${env.APP_RECORDING_FOLDER}/${videoFileName}`);
-    void uploadFileToMega(videoFileName)
-        .then(() => logger.info('Video uploaded to Mega'))
-        .catch((error) => logger.error('Failed to upload video to Mega:', error));
+    const megaUploadPromise = uploadFileToMega(videoFileName);
 
     const descriptionPromise = env.APP_ENABLE_AI === 'true'
         ? getAIPoweredVideoDescription(videoFileName, camera.name)
@@ -32,9 +32,29 @@ export async function handleRingNotification(camera, notif) {
                 return notif.android_config.body;
             })
         : Promise.resolve(notif.android_config.body);
-    const messageBody = await descriptionPromise;
+    const messagePromise = descriptionPromise.then((description) => formatMessage(description));
 
-    const message = formatMessage(messageBody);
+    void megaUploadPromise
+        .then(async (megaLink) => {
+            const timestamp = new Date();
+            logger.info('Video uploaded to Mega');
+            if (typeof megaLink !== 'string' || !megaLink) {
+                logger.error('Mega upload completed without a link; no upload event was saved.');
+                return;
+            }
+
+            try {
+                const description = await messagePromise;
+                await storeVideoEvent(description, megaLink, timestamp);
+                logger.info('Mega upload event saved to MongoDB');
+                await notifyPushSubscribers({ description, megaLink, timestamp });
+            } catch (error) {
+                logger.error('Failed to save Mega upload event to MongoDB:', error);
+            }
+        })
+        .catch((error) => logger.error('Failed to upload video to Mega:', error));
+
+    const message = await messagePromise;
     logger.info('Sending Slack notification with video...');
     try {
         await sendSlackNotificationWithVideo(message, videoFileName);
