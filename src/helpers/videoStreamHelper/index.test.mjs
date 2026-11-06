@@ -38,7 +38,7 @@ describe('openMegaVideoStream', () => {
         expect(file.download).toHaveBeenCalledWith({
             start: 0,
             end: 1023,
-            maxConnections: 1,
+            maxConnections: 2,
             forceHttps: true
         });
     });
@@ -59,7 +59,7 @@ describe('openMegaVideoStream', () => {
         expect(file.download).toHaveBeenCalledWith({
             start: 100,
             end: 199,
-            maxConnections: 1,
+            maxConnections: 2,
             forceHttps: true
         });
     });

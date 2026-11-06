@@ -1,7 +1,7 @@
 # Ring Doorbell Notifier
 Simple, Gemini AI-powered ([Gemini](https://ai.google.dev/gemini-api/docs/models/gemini)) nodejs app that will let you skip the expensive subscription and
 - Record motion videos directly on your **Mega drive**. Mega because it is the easiest and offers the best amount of free storage
-- Browse recorded events by day, jump to dates with the calendar picker, and play MEGA-hosted videos in the app without leaving the page.
+- Browse recorded events by day, jump to dates with the calendar picker, and play MEGA-hosted videos in the app without leaving the page. Event times are shown in the browser's local timezone.
 - Send notification to **Slack** with the recorded video attached when motion is detected.
 - Use AI to describe what your camera is seeing
 - With this you can enjoy pretty much the same premium features of ring doorbells for totally FREE.

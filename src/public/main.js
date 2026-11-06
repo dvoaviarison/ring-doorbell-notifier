@@ -63,7 +63,9 @@ async function fetchEvents() {
   updateEventDayNavigation();
 
   try {
-    const response = await fetch(`/events?day=${encodeURIComponent(selectedEventDay)}`);
+    const { start, end } = getLocalDayBounds(selectedEventDay);
+    const params = new URLSearchParams({ start: start.toISOString(), end: end.toISOString() });
+    const response = await fetch(`/events?${params}`);
     if (response.redirected) {
       throw new Error('Connect your Ring account in Settings to view events.');
     }
@@ -89,7 +91,7 @@ async function fetchEvents() {
   }
 }
 
-let selectedEventDay = new Date().toISOString().slice(0, 10);
+let selectedEventDay = getLocalDateString(new Date());
 let eventFetchId = 0;
 let currentEvents = [];
 let selectedEventIndex = -1;
@@ -100,15 +102,16 @@ let pushServerConfigured = false;
 
 function updateEventDayNavigation() {
   const dayLabel = document.getElementById('eventDayLabel');
-  const today = new Date().toISOString().slice(0, 10);
-  const date = new Date(`${selectedEventDay}T00:00:00.000Z`);
+  const today = getLocalDateString(new Date());
+  const date = parseLocalDate(selectedEventDay);
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
   const formattedDate = new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'full',
-    timeZone: 'UTC'
+    dateStyle: 'full'
   }).format(date);
   dayLabel.textContent = selectedEventDay === today
     ? 'Today'
-    : selectedEventDay === new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    : selectedEventDay === getLocalDateString(yesterday)
       ? 'Yesterday'
       : formattedDate;
   const datePicker = document.getElementById('eventDatePicker');
@@ -118,10 +121,10 @@ function updateEventDayNavigation() {
 }
 
 function changeEventDay(offset) {
-  const date = new Date(`${selectedEventDay}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + offset);
-  const nextDay = date.toISOString().slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
+  const date = parseLocalDate(selectedEventDay);
+  date.setDate(date.getDate() + offset);
+  const nextDay = getLocalDateString(date);
+  const today = getLocalDateString(new Date());
   if (nextDay > today) return;
   selectedEventDay = nextDay;
   fetchEvents();
@@ -129,14 +132,25 @@ function changeEventDay(offset) {
 
 function renderEvents(feed, events) {
   feed.textContent = '';
+  feed.classList.toggle('is-empty', events.length === 0);
   currentEvents = events;
   selectedEventIndex = events.length ? 0 : -1;
   renderSelectedEvent();
 
   if (events.length === 0) {
     const emptyState = document.createElement('div');
-    emptyState.className = 'event-empty-state text-center text-muted py-5';
-    emptyState.textContent = 'No events recorded on this day.';
+    emptyState.className = 'event-empty-state';
+    const icon = document.createElement('span');
+    icon.className = 'event-empty-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '✓';
+    const title = document.createElement('h3');
+    title.className = 'h6 mb-1';
+    title.textContent = 'No events for this day';
+    const message = document.createElement('p');
+    message.className = 'mb-0';
+    message.textContent = 'Camera recordings will appear here when an event is detected.';
+    emptyState.append(icon, title, message);
     feed.appendChild(emptyState);
     return;
   }
@@ -155,8 +169,7 @@ function renderEvents(feed, events) {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: false,
-        timeZone: 'UTC'
+        hour12: false
       }).format(eventDate);
     } else {
       time.textContent = '--:--:--';
@@ -209,14 +222,17 @@ function renderSelectedEvent() {
   if (!event) {
     const placeholder = document.createElement('div');
     placeholder.className = 'event-player-placeholder';
+    const icon = document.createElement('span');
+    icon.className = 'event-placeholder-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '▶';
     const message = document.createElement('span');
-    message.textContent = 'No video events for this day';
-    placeholder.appendChild(message);
+    message.textContent = 'No recording selected';
+    const hint = document.createElement('span');
+    hint.className = 'text-muted';
+    hint.textContent = 'Choose another date to browse recordings.';
+    placeholder.append(icon, message, hint);
     playerStage.appendChild(placeholder);
-    const emptyCaption = document.createElement('span');
-    emptyCaption.className = 'text-muted';
-    emptyCaption.textContent = 'Choose another day to view events.';
-    caption.appendChild(emptyCaption);
     return;
   }
 
@@ -248,14 +264,32 @@ function renderSelectedEvent() {
     timestamp.dateTime = eventTime.toISOString();
     timestamp.textContent = new Intl.DateTimeFormat(undefined, {
       dateStyle: 'medium',
-      timeStyle: 'short',
-      timeZone: 'UTC'
-    }).format(eventTime) + ' UTC';
+      timeStyle: 'short'
+    }).format(eventTime);
   } else {
     timestamp.textContent = 'Time unavailable';
   }
   eventMeta.append(description, timestamp);
   caption.appendChild(eventMeta);
+}
+
+function getLocalDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseLocalDate(day) {
+  const [year, month, date] = day.split('-').map(Number);
+  return new Date(year, month - 1, date);
+}
+
+function getLocalDayBounds(day) {
+  const start = parseLocalDate(day);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start, end };
 }
 
 function getEventDisplayDescription(description) {
@@ -277,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('nextEventDayBtn').addEventListener('click', () => changeEventDay(1));
   document.getElementById('eventDatePicker').addEventListener('change', (event) => {
     const selectedDay = event.currentTarget.value;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateString(new Date());
     if (selectedDay && selectedDay <= today) {
       selectedEventDay = selectedDay;
       fetchEvents();

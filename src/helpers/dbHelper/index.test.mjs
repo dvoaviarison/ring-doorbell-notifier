@@ -129,9 +129,10 @@ describe('Ring refresh token persistence', () => {
             .resolves.toBe('https://mega.nz/file/id#key');
 
         expect(ObjectId).toHaveBeenCalledWith('0123456789abcdef01234567');
-        expect(client.findOne).toHaveBeenCalledWith(expect.objectContaining({
-            _id: expect.objectContaining({ value: '0123456789abcdef01234567' })
-        }), { projection: { _id: 0, megaLink: 1 } });
+        expect(client.findOne).toHaveBeenCalledWith(
+            { _id: expect.objectContaining({ value: '0123456789abcdef01234567' }) },
+            { projection: { _id: 0, megaLink: 1 } }
+        );
         expect(client.close).toHaveBeenCalled();
     });
 

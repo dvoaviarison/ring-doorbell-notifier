@@ -160,20 +160,39 @@ app.get('/cameras', async (req, res) => {
 });
 
 app.get('/events', async (req, res) => {
-  const requestedDay = req.query.day;
-  const day = requestedDay ?? new Date().toISOString().slice(0, 10);
-  if (
-    typeof day !== 'string' ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(day)
-  ) {
-    return res.status(400).json({ error: 'Day must be a date in YYYY-MM-DD format.' });
-  }
+  let start;
+  let end;
+  if (req.query.start !== undefined || req.query.end !== undefined) {
+    if (typeof req.query.start !== 'string' || typeof req.query.end !== 'string') {
+      return res.status(400).json({ error: 'Start and end timestamps are required together.' });
+    }
 
-  const start = new Date(`${day}T00:00:00.000Z`);
-  if (Number.isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== day) {
-    return res.status(400).json({ error: 'Day must be a valid calendar date.' });
+    start = new Date(req.query.start);
+    end = new Date(req.query.end);
+    const duration = end.getTime() - start.getTime();
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      start.toISOString() !== req.query.start ||
+      end.toISOString() !== req.query.end ||
+      duration < 23 * 60 * 60 * 1000 ||
+      duration > 25 * 60 * 60 * 1000
+    ) {
+      return res.status(400).json({ error: 'Start and end must define a valid local calendar day.' });
+    }
+  } else {
+    const requestedDay = req.query.day;
+    const day = requestedDay ?? new Date().toISOString().slice(0, 10);
+    if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      return res.status(400).json({ error: 'Day must be a date in YYYY-MM-DD format.' });
+    }
+
+    start = new Date(`${day}T00:00:00.000Z`);
+    if (Number.isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== day) {
+      return res.status(400).json({ error: 'Day must be a valid calendar date.' });
+    }
+    end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
   }
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
   try {
     const events = await getVideoEventsForDay(start, end);
@@ -185,8 +204,17 @@ app.get('/events', async (req, res) => {
 });
 
 app.get('/events/:id/video', async (req, res) => {
+  let stream;
+  let clientDisconnected = false;
+  res.on('close', () => {
+    if (res.writableFinished) return;
+    clientDisconnected = true;
+    if (stream && !stream.destroyed) stream.destroy();
+  });
+
   try {
     const megaLink = await getVideoEventMegaLink(req.params.id);
+    if (clientDisconnected || res.destroyed) return;
     if (!megaLink) {
       return res.status(404).send('Video event not found.');
     }
@@ -202,21 +230,27 @@ app.get('/events/:id/video', async (req, res) => {
       return res.status(502).send('The saved MEGA link is not a supported video link.');
     }
 
-    const { stream, statusCode, headers } = await openMegaVideoStream(megaLink, req.headers.range);
-    res.status(statusCode).set(headers);
+    const video = await openMegaVideoStream(megaLink, req.headers.range);
+    stream = video.stream;
     stream.on('error', (error) => {
+      if (clientDisconnected || res.destroyed) return;
+
       logger.error('Failed to stream video from MEGA:', error);
       if (res.headersSent) {
-        res.destroy(error);
+        res.destroy();
       } else {
         res.status(502).end('Could not stream video from MEGA.');
       }
     });
-    res.on('close', () => {
+    if (clientDisconnected || res.destroyed) {
       if (!stream.destroyed) stream.destroy();
-    });
+      return;
+    }
+
+    res.status(video.statusCode).set(video.headers);
     stream.pipe(res);
   } catch (error) {
+    if (clientDisconnected || res.destroyed) return;
     if (error.statusCode === 416) {
       return res.status(416).set('Content-Range', error.contentRange).end();
     }

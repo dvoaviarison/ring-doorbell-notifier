@@ -22,7 +22,8 @@ export async function openMegaVideoStream(megaLink, rangeHeader) {
     }
 
     return {
-        stream: file.download({ start, end, maxConnections: 1, forceHttps: true }),
+        // MEGA's single-connection reader can leave an AbortError unhandled when playback switches videos.
+        stream: file.download({ start, end, maxConnections: 2, forceHttps: true }),
         statusCode: range ? 206 : 200,
         headers
     };
