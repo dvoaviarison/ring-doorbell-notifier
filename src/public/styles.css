@@ -243,8 +243,13 @@ main.container {
   object-fit: cover;
 }
 .timeline-description {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
   overflow-wrap: anywhere;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 .event-empty-state {
   display: flex;
