@@ -5,7 +5,8 @@ import { updateEnvValue, purgeLocalFiles } from './helpers/fileHelper/index.mjs'
 import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
 import { contextMiddleware } from './helpers/contextHelper/index.mjs';
-import { setupAuth, setupSession, authMiddleware } from './helpers/authHelper/index.mjs';
+import { setupAuth, setupSession, authMiddleware, isSlackRequestValid } from './helpers/authHelper/index.mjs';
+import { createAccessMiddleware, createGoogleAuth } from './helpers/googleAuthHelper/index.mjs';
 import {
   deletePushSubscription,
   getVideoEventMegaLink,
@@ -87,8 +88,13 @@ async function activateRingApi(refreshToken) {
   previousApi?.disconnect();
 }
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const captureRawBody = (req, _res, buffer) => { req.rawBody = buffer.toString('utf8'); };
+app.use(express.json({ verify: captureRawBody }));
+app.use(express.urlencoded({ extended: true, verify: captureRawBody }));
+
+const googleAuth = createGoogleAuth(env, logger);
+googleAuth.setup(app);
+app.use(createAccessMiddleware(googleAuth, isSlackRequestValid));
 
 // Configure session and Ring authentication
 setupSession(app);

@@ -8,6 +8,7 @@
     "express": "^4.21.2",
     "express-session": "^1.18.2",
     "fs": "^0.0.1-security",
+    "google-auth-library": "^11.3.3",
     "megajs": "^1.2.0",
     "mongodb": "^6.17.0",
     "ring-client-api": "^14.0.1",

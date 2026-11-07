@@ -6,9 +6,28 @@ jest.mock('../dbHelper/index.mjs', () => ({
     storeRefreshToken: jest.fn()
 }));
 
-import { authMiddleware, setupAuth } from './index.mjs';
+import crypto from 'node:crypto';
+import { authMiddleware, isSlackRequestValid, setupAuth } from './index.mjs';
 
 describe('Ring authentication persistence', () => {
+    it('validates Slack signatures over the captured raw request body', () => {
+        const previous = process.env.SLACK_SIGNING_SECRET;
+        process.env.SLACK_SIGNING_SECRET = 'test-secret';
+        try {
+            const timestamp = String(Math.floor(Date.now() / 1000));
+            const rawBody = 'text=hello';
+            const signature = 'v0=' + crypto.createHmac('sha256', 'test-secret').update(`v0:${timestamp}:${rawBody}`).digest('hex');
+            const req = { rawBody, headers: { 'x-slack-signature': signature, 'x-slack-request-timestamp': timestamp } };
+            expect(isSlackRequestValid(req)).toBe(true);
+            req.headers['x-slack-signature'] = 'v0=short';
+            expect(isSlackRequestValid(req)).toBe(false);
+            req.headers['x-slack-request-timestamp'] = 'invalid';
+            expect(isSlackRequestValid(req)).toBe(false);
+        } finally {
+            if (previous === undefined) delete process.env.SLACK_SIGNING_SECRET;
+            else process.env.SLACK_SIGNING_SECRET = previous;
+        }
+    });
     it('allows requests when the saved Ring token has initialized the API', () => {
         const next = jest.fn();
         const response = { redirect: jest.fn() };

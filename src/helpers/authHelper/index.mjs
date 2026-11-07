@@ -17,7 +17,7 @@ export function setupSession(app) {
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production'
+      secure: 'auto'
     }
   }));
 }
@@ -149,7 +149,7 @@ async function completeRingLogin(req, res, client, onRingLogin) {
   });
 }
 
-function isSlackRequestValid(req) {
+export function isSlackRequestValid(req) {
   const signingSecret = process.env.SLACK_SIGNING_SECRET;
   if (!signingSecret) {
     logger.warn('SLACK_SIGNING_SECRET is not set. Cannot verify Slack requests.');
@@ -160,7 +160,8 @@ function isSlackRequestValid(req) {
   const requestTimestamp = req.headers['x-slack-request-timestamp'];
   const rawBody = req.rawBody; // Requires raw body middleware
 
-  if (!slackSignature || !requestTimestamp || !rawBody) {
+  if (typeof slackSignature !== 'string' || typeof requestTimestamp !== 'string' ||
+      !/^\d+$/.test(requestTimestamp) || typeof rawBody !== 'string') {
     return false;
   }
 
@@ -177,7 +178,9 @@ function isSlackRequestValid(req) {
           .update(sigBasestring, 'utf8')
           .digest('hex');
 
-  return crypto.timingSafeEqual(Buffer.from(mySignature, 'utf8'), Buffer.from(slackSignature, 'utf8'));
+  const expected = Buffer.from(mySignature, 'utf8');
+  const actual = Buffer.from(slackSignature, 'utf8');
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
 function ensureAuthenticated(req, res, next, isRingConnected) {
