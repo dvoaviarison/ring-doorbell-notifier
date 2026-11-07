@@ -1,0 +1,886 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Ring Doorbell Notifier API",
+    "version": "1.0.0",
+    "description": "Backend API for Ring account status, event browsing, video playback, capture, and browser push subscriptions. Operational endpoints use the existing Ring web session. Sign in through the application before trying protected operations."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current Ring Doorbell Notifier host"
+    }
+  ],
+  "security": [
+    {
+      "ringSession": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health"
+    },
+    {
+      "name": "Ring"
+    },
+    {
+      "name": "Events"
+    },
+    {
+      "name": "Push notifications"
+    },
+    {
+      "name": "Settings"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Check application health",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Application is healthy",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "example": "Healthy"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Health"],
+        "summary": "Check application health (Slack-compatible)",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Application is healthy",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "example": "Healthy"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/ring/status": {
+      "get": {
+        "tags": ["Ring"],
+        "summary": "Get Ring connection status",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Whether Ring is connected or the current browser session is authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["authenticated"],
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/ring/login": {
+      "post": {
+        "tags": ["Ring"],
+        "summary": "Sign in to Ring",
+        "description": "If Ring requires two-factor verification, the response indicates that an MFA code is needed. The browser session is established after successful authentication.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated, or MFA is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": ["authenticated"],
+                      "properties": {
+                        "authenticated": {
+                          "type": "boolean",
+                          "enum": [true]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": ["requiresMfa", "prompt"],
+                      "properties": {
+                        "requiresMfa": {
+                          "type": "boolean",
+                          "enum": [true]
+                        },
+                        "prompt": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "description": "Ring did not return a refresh token"
+          }
+        }
+      }
+    },
+    "/auth/ring/mfa": {
+      "post": {
+        "tags": ["Ring"],
+        "summary": "Complete Ring two-factor authentication",
+        "description": "Uses the same browser session as the login request. MFA login attempts expire after ten minutes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["code"],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["authenticated"],
+                  "properties": {
+                    "authenticated": {
+                      "type": "boolean",
+                      "enum": [true]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MFA session is expired or the verification code is missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Verification code was not accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/auth/ring/logout": {
+      "post": {
+        "tags": ["Ring"],
+        "summary": "Sign out of the current application session",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Session ended and its cookie cleared"
+          }
+        }
+      }
+    },
+    "/cameras": {
+      "get": {
+        "tags": ["Ring"],
+        "summary": "List Ring camera names",
+        "description": "This endpoint is available without an authenticated browser session.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Camera names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/capture": {
+      "post": {
+        "tags": ["Ring"],
+        "summary": "Start a camera capture",
+        "description": "Starts capture in the background. Provide cameraName in the query, or cameraName/text in the JSON body.",
+        "parameters": [
+          {
+            "name": "cameraName",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cameraName": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Capture started",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "example": "Capture started. Recording and Slack delivery are continuing in the background."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A camera name was not provided",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Ring is not connected",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "tags": ["Events"],
+        "summary": "List video events for a day",
+        "description": "Use either day (YYYY-MM-DD) or both start and end as ISO 8601 timestamps. start/end must define a calendar day lasting 23 to 25 hours. If no date parameter is supplied, the current UTC day is used. Results are ordered newest first.",
+        "parameters": [
+          {
+            "name": "day",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Video events; an empty array means no events were recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VideoEvent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/events/{id}/video": {
+      "get": {
+        "tags": ["Events"],
+        "summary": "Stream an event video",
+        "description": "Supports HTTP byte-range requests for seeking in the video.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EventId"
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "bytes=0-1023"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Video stream",
+            "content": {
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial video stream",
+            "content": {
+              "video/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Event not found"
+          },
+          "416": {
+            "description": "Requested byte range is not satisfiable"
+          },
+          "502": {
+            "description": "Saved video link is unsupported or the video could not be opened"
+          }
+        }
+      }
+    },
+    "/events/{id}/thumbnail": {
+      "get": {
+        "tags": ["Events"],
+        "summary": "Stream an event thumbnail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EventId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JPEG thumbnail",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Event or thumbnail not found"
+          },
+          "502": {
+            "description": "Saved thumbnail link is unsupported or the thumbnail could not be opened"
+          }
+        }
+      }
+    },
+    "/push/config": {
+      "get": {
+        "tags": ["Push notifications"],
+        "summary": "Get browser push configuration",
+        "responses": {
+          "200": {
+            "description": "Push setup state and public VAPID key, if configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["configured", "publicKey"],
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "publicKey": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/push/subscriptions": {
+      "post": {
+        "tags": ["Push notifications"],
+        "summary": "Save a browser push subscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscription"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscription saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["subscribed"],
+                  "properties": {
+                    "subscribed": {
+                      "type": "boolean",
+                      "enum": [true]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Push notifications"],
+        "summary": "Remove a browser push subscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["endpoint"],
+                "properties": {
+                  "endpoint": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Subscription removed"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/env": {
+      "get": {
+        "tags": ["Settings"],
+        "summary": "Read the configurable AI user prompt",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["APP_AI_USER_PROMPT"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current prompt value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "APP_AI_USER_PROMPT": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/update-slack-channel": {
+      "post": {
+        "tags": ["Settings"],
+        "summary": "Update the Slack channel",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["channelId"],
+                "properties": {
+                  "channelId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Setting updated",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A non-empty channelId is required",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Setting could not be updated",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/update-user-prompt": {
+      "post": {
+        "tags": ["Settings"],
+        "summary": "Update the AI user prompt",
+        "description": "The prompt can be supplied as userPrompt or text.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userPrompt": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "anyOf": [
+                  {
+                    "required": ["userPrompt"]
+                  },
+                  {
+                    "required": ["text"]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Setting updated",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A non-empty prompt is required",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Setting could not be updated",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/login": {
+      "get": {
+        "tags": ["Ring"],
+        "summary": "Redirect to the application login panel",
+        "security": [],
+        "responses": {
+          "302": {
+            "description": "Redirects to the application settings panel"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ringSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "connect.sid",
+        "description": "Application session cookie established by successful Ring login. Swagger UI on the same host reuses the browser's session."
+      }
+    },
+    "parameters": {
+      "EventId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "24-character MongoDB event ID",
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{24}$"
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "VideoEvent": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{24}$"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string"
+          },
+          "megaLink": {
+            "type": "string",
+            "format": "uri"
+          },
+          "thumbnailLink": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "PushSubscription": {
+        "type": "object",
+        "required": ["endpoint", "keys"],
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048
+          },
+          "keys": {
+            "type": "object",
+            "required": ["p256dh", "auth"],
+            "properties": {
+              "p256dh": {
+                "type": "string"
+              },
+              "auth": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Request is invalid",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Ring credentials were rejected",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "Ring is not connected",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "The request could not be completed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

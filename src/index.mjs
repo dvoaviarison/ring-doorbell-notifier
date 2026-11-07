@@ -16,6 +16,8 @@ import {
 import { getPushConfiguration } from './helpers/pushNotificationHelper/index.mjs';
 import { openMegaFileStream } from './helpers/videoStreamHelper/index.mjs';
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
+import { readFileSync } from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -27,6 +29,7 @@ const port = env.APP_SERVER_PORT;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const apiSpec = JSON.parse(readFileSync(path.join(__dirname, 'openapi.json'), 'utf8'));
 let ringApi;
 let ringApiCleanup;
 let ringApiActivation = 0;
@@ -91,6 +94,8 @@ app.use(express.urlencoded({ extended: true }));
 setupSession(app);
 app.use((req, res, next) => authMiddleware(req, res, next, () => Boolean(ringApi)));
 app.use(contextMiddleware);
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiSpec));
 
 // Serve static files (after protection)
 app.use(express.static(path.join(__dirname, 'public')));
