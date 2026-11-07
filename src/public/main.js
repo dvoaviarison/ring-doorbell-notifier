@@ -236,13 +236,13 @@ function renderSelectedEvent() {
     icon.className = 'event-placeholder-icon';
     icon.setAttribute('aria-hidden', 'true');
     icon.textContent = '▶';
-    const message = document.createElement('span');
-    message.textContent = 'No recording selected';
-    const hint = document.createElement('span');
-    hint.className = 'text-muted';
-    hint.textContent = 'Choose another date to browse recordings.';
-    placeholder.append(icon, message, hint);
+    placeholder.appendChild(icon);
     playerStage.appendChild(placeholder);
+
+    const message = document.createElement('span');
+    message.className = 'text-muted';
+    message.textContent = 'No recording selected. Choose another date to browse recordings.';
+    caption.appendChild(message);
     return;
   }
 

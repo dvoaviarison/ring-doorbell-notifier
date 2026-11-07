@@ -3,6 +3,7 @@ body, html {
 }
 .app-header {
   background-color: rgb(52 48 60) !important;
+  padding-top: env(safe-area-inset-top, 0px);
 }
 .header-content {
   /* Bootstrap's py-3 is 1rem padding, 10% less is 0.9rem */
