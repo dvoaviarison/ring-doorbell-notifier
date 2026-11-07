@@ -36,8 +36,6 @@ export async function getRefreshToken() {
     catch (error) {
         logger.error('Error connecting to MongoDB or fetching refresh token:', error);
         throw error;
-    } finally {
-        await client.close();
     }
 }
 
@@ -59,8 +57,6 @@ export async function storeRefreshToken(refreshToken) {
     } catch (err) {
         logger.error('Error connecting to MongoDB or storing refresh token:', err);
         throw err;
-    } finally {
-        await client.close();
     }
 }
 
@@ -113,8 +109,6 @@ export async function storeVideoEvent(description, megaLink, timestamp = new Dat
     } catch (error) {
         logger.error('Error connecting to MongoDB or storing Mega upload event:', error);
         throw error;
-    } finally {
-        await client.close();
     }
 }
 
@@ -133,8 +127,6 @@ export async function getVideoEventsForDay(start, end) {
     } catch (error) {
         logger.error('Error connecting to MongoDB or fetching daily Mega upload events:', error);
         throw error;
-    } finally {
-        await client.close();
     }
 }
 
@@ -154,8 +146,6 @@ export async function getVideoEventThumbnailLink(id) {
     } catch (error) {
         logger.error('Error connecting to MongoDB or loading video thumbnail:', error);
         throw error;
-    } finally {
-        await client.close();
     }
 }
 
@@ -175,8 +165,6 @@ export async function getVideoEventMegaLink(id) {
     } catch (error) {
         logger.error('Error connecting to MongoDB or loading video event:', error);
         throw error;
-    } finally {
-        await client.close();
     }
 }
 
@@ -192,8 +180,6 @@ export async function storePushSubscription(subscription) {
     } catch (error) {
         logger.error('Error connecting to MongoDB or storing push subscription:', error);
         throw error;
-    } finally {
-        await client.close();
     }
 }
 
@@ -205,8 +191,6 @@ export async function getPushSubscriptions() {
     } catch (error) {
         logger.error('Error connecting to MongoDB or fetching push subscriptions:', error);
         throw error;
-    } finally {
-        await client.close();
     }
 }
 
@@ -218,7 +202,5 @@ export async function deletePushSubscription(endpoint) {
     } catch (error) {
         logger.error('Error connecting to MongoDB or deleting push subscription:', error);
         throw error;
-    } finally {
-        await client.close();
     }
 }

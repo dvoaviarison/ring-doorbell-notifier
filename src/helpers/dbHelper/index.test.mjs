@@ -77,7 +77,6 @@ describe('Ring refresh token persistence', () => {
         client.find.mockReturnValue(eventCursor);
         eventCursor.sort.mockReturnValue(eventCursor);
         eventCursor.toArray.mockResolvedValue([]);
-        client.close.mockResolvedValue(undefined);
         createVideoThumbnail.mockResolvedValue('Front door-2026-11-06_120000.jpg');
         uploadFileToMega.mockResolvedValue('https://mega.example/thumbnail');
     });
@@ -93,7 +92,7 @@ describe('Ring refresh token persistence', () => {
     it('loads the refresh token from MongoDB', async () => {
         await expect(getRefreshToken()).resolves.toBe('stored-token');
         expect(client.findOne).toHaveBeenCalledWith({ key: 'refreshToken' });
-        expect(client.close).toHaveBeenCalled();
+        expect(client.close).not.toHaveBeenCalled();
     });
 
     it('requires Ring sign-in when MongoDB has no refresh token', async () => {
@@ -101,7 +100,7 @@ describe('Ring refresh token persistence', () => {
 
         await expect(getRefreshToken())
             .rejects.toThrow('No Ring refresh token found in MongoDB. Sign in through the web UI to connect.');
-        expect(client.close).toHaveBeenCalled();
+        expect(client.close).not.toHaveBeenCalled();
     });
 
     it('propagates MongoDB errors instead of falling back to an environment token', async () => {
@@ -119,7 +118,7 @@ describe('Ring refresh token persistence', () => {
             { $set: { value: 'new-token' } },
             { upsert: true }
         );
-        expect(client.close).toHaveBeenCalled();
+        expect(client.close).not.toHaveBeenCalled();
     });
 
     it('stores a video event with a UTC timestamp, Slack description, and Mega link', async () => {
@@ -149,7 +148,7 @@ describe('Ring refresh token persistence', () => {
         expect(purgeLocalFiles).toHaveBeenCalled();
         expect(client.db).toHaveBeenCalledWith('ringnotifier');
         expect(client.collection).toHaveBeenCalledWith('events');
-        expect(client.close).toHaveBeenCalled();
+        expect(client.close).not.toHaveBeenCalled();
     });
 
     it('stores the event without a thumbnail when thumbnail generation fails', async () => {
@@ -210,7 +209,7 @@ describe('Ring refresh token persistence', () => {
             { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1, thumbnailLink: 1 } }
         );
         expect(eventCursor.sort).toHaveBeenCalledWith({ timestamp: -1 });
-        expect(client.close).toHaveBeenCalled();
+        expect(client.close).not.toHaveBeenCalled();
     });
 
     it('loads a MEGA thumbnail link by event id', async () => {
@@ -223,7 +222,7 @@ describe('Ring refresh token persistence', () => {
             { _id: expect.objectContaining({ value: '0123456789abcdef01234567' }) },
             { projection: { _id: 0, thumbnailLink: 1 } }
         );
-        expect(client.close).toHaveBeenCalled();
+        expect(client.close).not.toHaveBeenCalled();
     });
 
     it('loads a MEGA link by event id for in-page video playback', async () => {
@@ -237,7 +236,22 @@ describe('Ring refresh token persistence', () => {
             { _id: expect.objectContaining({ value: '0123456789abcdef01234567' }) },
             { projection: { _id: 0, megaLink: 1 } }
         );
-        expect(client.close).toHaveBeenCalled();
+        expect(client.close).not.toHaveBeenCalled();
+    });
+
+    it('keeps the shared client open while video links are loaded concurrently', async () => {
+        client.findOne
+            .mockResolvedValueOnce({ thumbnailLink: 'https://mega.nz/file/thumbnail#key' })
+            .mockResolvedValueOnce({ megaLink: 'https://mega.nz/file/video#key' });
+
+        await expect(Promise.all([
+            getVideoEventThumbnailLink('0123456789abcdef01234567'),
+            getVideoEventMegaLink('0123456789abcdef01234567')
+        ])).resolves.toEqual([
+            'https://mega.nz/file/thumbnail#key',
+            'https://mega.nz/file/video#key'
+        ]);
+        expect(client.close).not.toHaveBeenCalled();
     });
 
     it('rejects invalid event ids without querying MongoDB', async () => {
@@ -260,7 +274,7 @@ describe('Ring refresh token persistence', () => {
             { upsert: true }
         );
         expect(client.collection).toHaveBeenCalledWith('pushSubscriptions');
-        expect(client.close).toHaveBeenCalled();
+        expect(client.close).not.toHaveBeenCalled();
     });
 
     it('loads stored browser push subscriptions', async () => {
@@ -272,7 +286,7 @@ describe('Ring refresh token persistence', () => {
             {},
             { projection: { _id: 0, endpoint: 1, subscription: 1 } }
         );
-        expect(client.close).toHaveBeenCalled();
+        expect(client.close).not.toHaveBeenCalled();
     });
 
     it('deletes a browser push subscription by endpoint', async () => {
@@ -280,6 +294,6 @@ describe('Ring refresh token persistence', () => {
         await deletePushSubscription(endpoint);
 
         expect(client.deleteOne).toHaveBeenCalledWith({ endpoint });
-        expect(client.close).toHaveBeenCalled();
+        expect(client.close).not.toHaveBeenCalled();
     });
 });
