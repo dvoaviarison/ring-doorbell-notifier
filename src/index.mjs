@@ -17,6 +17,7 @@ import {
 } from './helpers/dbHelper/index.mjs';
 import { getPushConfiguration } from './helpers/pushNotificationHelper/index.mjs';
 import { openMegaFileStream } from './helpers/videoStreamHelper/index.mjs';
+import { createLiveViewRouter } from './helpers/liveViewHelper/index.mjs';
 import express from 'express';
 import { readFileSync } from 'node:fs';
 import path from 'path';
@@ -156,6 +157,8 @@ app.get('/cameras', async (req, res) => {
     res.status(500).json({ error: 'Could not load Ring cameras.' });
   }
 });
+
+app.use('/cameras/live', createLiveViewRouter(() => ringApi, logger));
 
 app.get('/events', async (req, res) => {
   let start;

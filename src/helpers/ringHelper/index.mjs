@@ -5,6 +5,7 @@ export async function getLoggedInRingApi(refreshTokenOverride){
     const refreshToken = refreshTokenOverride ?? await getRefreshToken();
     const ringApi = new RingApi({
         refreshToken: refreshToken,
+        avoidSnapshotBatteryDrain: true,
     });
 
     return ringApi;
