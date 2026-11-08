@@ -7,6 +7,7 @@ import { handleRingNotification } from './ringNotificationHandler/index.mjs';
 import { contextMiddleware } from './helpers/contextHelper/index.mjs';
 import { setupAuth, setupSession, authMiddleware, isSlackRequestValid } from './helpers/authHelper/index.mjs';
 import { createAccessMiddleware, createGoogleAuth } from './helpers/googleAuthHelper/index.mjs';
+import { setupApiDocs } from './helpers/apiDocsHelper/index.mjs';
 import {
   deletePushSubscription,
   getVideoEventMegaLink,
@@ -17,7 +18,6 @@ import {
 import { getPushConfiguration } from './helpers/pushNotificationHelper/index.mjs';
 import { openMegaFileStream } from './helpers/videoStreamHelper/index.mjs';
 import express from 'express';
-import swaggerUi from 'swagger-ui-express';
 import { readFileSync } from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -101,15 +101,7 @@ setupSession(app);
 app.use((req, res, next) => authMiddleware(req, res, next, () => Boolean(ringApi)));
 app.use(contextMiddleware);
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiSpec));
-
-// Serve static files (after protection)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Home page :)
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+setupApiDocs(app, apiSpec);
 
 // Healthcheck endpoint
 app.get('/health', (req, res) => {
@@ -142,7 +134,7 @@ app.post('/capture', (req, res) => {
     return res.status(400).send('Select a camera before starting a capture.');
   }
   if (!ringApi) {
-    return res.status(503).send('Ring is not connected. Connect your account in Settings first.');
+    return res.status(503).send('Ring is not connected. Sign in through A-Eye or the Ring authentication API.');
   }
 
   void capture(cameraName.trim()).catch((error) => {
@@ -400,6 +392,6 @@ app.listen(port, () => {
   logger.info(`Server is running on http://localhost:${port}`);
   logger.info('Starting the Ring notifier');
   activateRingApi().catch((error) => {
-    logger.warn('Ring is not authenticated yet. Sign in through the web UI to connect:', error.message);
+    logger.warn('Ring is not authenticated yet. Sign in through A-Eye or the Ring authentication API:', error.message);
   });
 });

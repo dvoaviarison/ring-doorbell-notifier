@@ -99,7 +99,7 @@ describe('Ring refresh token persistence', () => {
         client.findOne.mockResolvedValue(null);
 
         await expect(getRefreshToken())
-            .rejects.toThrow('No Ring refresh token found in MongoDB. Sign in through the web UI to connect.');
+            .rejects.toThrow('No Ring refresh token found in MongoDB. Sign in through A-Eye or the Ring authentication API.');
         expect(client.close).not.toHaveBeenCalled();
     });
 

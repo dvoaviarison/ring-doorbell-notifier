@@ -27,7 +27,7 @@ const loginTimeoutMs = 10 * 60 * 1000;
 
 export function setupAuth(app, logger, onRingLogin, isRingConnected = () => false) {
   app.get('/login', (_req, res) => {
-    res.redirect('/#settings');
+    res.redirect('/api-docs/');
   });
 
   app.get('/auth/ring/status', (req, res) => {
@@ -194,21 +194,18 @@ function ensureAuthenticated(req, res, next, isRingConnected) {
     return next();
   }
 
-  res.redirect('/#settings');
+  res.status(401).json({ error: 'Ring is not connected. Sign in through A-Eye or the Ring authentication API.' });
 }
 
 export function authMiddleware(req, res, next, isRingConnected = () => false) {
-  const publicPaths = ['/auth/ring/', '/login', '/public', '/health'];
-  const publicFiles = ['/favicon.ico', '/manifest.json', '/robots.txt'];
-  const publicExtensions = ['.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.eot'];
+  const publicPaths = ['/auth/ring/', '/health'];
 
   const isPublicPath = publicPaths.some(path => req.path.startsWith(path));
-  const isPublicFile = publicFiles.includes(req.path);
-  const isPublicExtension = publicExtensions.some(ext => req.path.endsWith(ext));
-  const isApplicationEntry = req.path === '/' || req.path === '/index.html';
+  const isApplicationEntry = req.path === '/' || req.path === '/login' ||
+    req.path === '/api-docs' || req.path.startsWith('/api-docs/');
   const isCameraListEndpoint = req.path === '/cameras';
   
-  if (isApplicationEntry || isPublicPath || isPublicFile || isPublicExtension || isCameraListEndpoint) {
+  if (isApplicationEntry || isPublicPath || isCameraListEndpoint) {
     return next();
   }
 

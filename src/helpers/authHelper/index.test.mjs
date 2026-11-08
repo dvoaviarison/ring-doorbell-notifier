@@ -43,11 +43,12 @@ describe('Ring authentication persistence', () => {
         expect(response.redirect).not.toHaveBeenCalled();
     });
 
-    it('keeps the dashboard available so an account can be connected in Settings', () => {
+    it.each(['/', '/login', '/api-docs', '/api-docs/', '/api-docs/swagger-ui.css', '/auth/ring/login'])(
+        'allows %s without a Ring connection', (path) => {
         const next = jest.fn();
 
         authMiddleware(
-            { path: '/', session: undefined, headers: {} },
+            { path, session: undefined, headers: {} },
             { redirect: jest.fn() },
             next,
             () => false
@@ -56,8 +57,8 @@ describe('Ring authentication persistence', () => {
         expect(next).toHaveBeenCalledTimes(1);
     });
 
-    it('sends protected requests to Ring setup when there is no active token', () => {
-        const response = { redirect: jest.fn() };
+    it('returns an authentication error for protected requests without an active token', () => {
+        const response = { status: jest.fn().mockReturnThis(), json: jest.fn() };
 
         authMiddleware(
             { path: '/update-user-prompt', session: undefined, headers: {} },
@@ -66,11 +67,14 @@ describe('Ring authentication persistence', () => {
             () => false
         );
 
-        expect(response.redirect).toHaveBeenCalledWith('/#settings');
+        expect(response.status).toHaveBeenCalledWith(401);
+        expect(response.json).toHaveBeenCalledWith({
+            error: 'Ring is not connected. Sign in through A-Eye or the Ring authentication API.'
+        });
     });
 
     it('protects the video event feed when there is no active Ring session', () => {
-        const response = { redirect: jest.fn() };
+        const response = { status: jest.fn().mockReturnThis(), json: jest.fn() };
 
         authMiddleware(
             { path: '/events', session: undefined, headers: {} },
@@ -79,7 +83,15 @@ describe('Ring authentication persistence', () => {
             () => false
         );
 
-        expect(response.redirect).toHaveBeenCalledWith('/#settings');
+        expect(response.status).toHaveBeenCalledWith(401);
+    });
+
+    it('redirects the old login path to Swagger', () => {
+        const handlers = new Map();
+        setupAuth({ get: (path, handler) => handlers.set(path, handler), post: jest.fn() }, {}, jest.fn());
+        const response = { redirect: jest.fn() };
+        handlers.get('/login')({}, response);
+        expect(response.redirect).toHaveBeenCalledWith('/api-docs/');
     });
 
     it('reports the active Ring connection even when the browser has no login session', () => {

@@ -3,7 +3,7 @@
   "info": {
     "title": "Ring Doorbell Notifier API",
     "version": "1.0.0",
-    "description": "Backend API for Ring account status, event browsing, video playback, capture, and browser push subscriptions. Operational endpoints use the existing Ring web session. Sign in through the application before trying protected operations."
+    "description": "Backend API for Ring account status, event browsing, video playback, capture, and browser push subscriptions. Google sign-in protects the API and documentation. Connect Ring through A-Eye or the Ring authentication endpoints before trying protected operations."
   },
   "servers": [
     {
@@ -13,7 +13,7 @@
   ],
   "security": [
     {
-      "ringSession": []
+      "googleSession": []
     }
   ],
   "tags": [
@@ -76,7 +76,6 @@
       "get": {
         "tags": ["Ring"],
         "summary": "Get Ring connection status",
-        "security": [],
         "responses": {
           "200": {
             "description": "Whether Ring is connected or the current browser session is authenticated",
@@ -102,7 +101,6 @@
         "tags": ["Ring"],
         "summary": "Sign in to Ring",
         "description": "If Ring requires two-factor verification, the response indicates that an MFA code is needed. The browser session is established after successful authentication.",
-        "security": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -243,7 +241,6 @@
       "post": {
         "tags": ["Ring"],
         "summary": "Sign out of the current application session",
-        "security": [],
         "responses": {
           "204": {
             "description": "Session ended and its cookie cleared"
@@ -255,8 +252,7 @@
       "get": {
         "tags": ["Ring"],
         "summary": "List Ring camera names",
-        "description": "This endpoint is available without an authenticated browser session.",
-        "security": [],
+        "description": "A Google session is required; a Ring connection is needed to list cameras.",
         "responses": {
           "200": {
             "description": "Camera names",
@@ -751,11 +747,10 @@
     "/login": {
       "get": {
         "tags": ["Ring"],
-        "summary": "Redirect to the application login panel",
-        "security": [],
+        "summary": "Redirect to the API documentation",
         "responses": {
           "302": {
-            "description": "Redirects to the application settings panel"
+            "description": "Redirects to the API documentation"
           }
         }
       }
@@ -763,11 +758,17 @@
   },
   "components": {
     "securitySchemes": {
+      "googleSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "a_eye_session",
+        "description": "Google session established through /auth/google. Sign in with an authorized account before opening Swagger."
+      },
       "ringSession": {
         "type": "apiKey",
         "in": "cookie",
         "name": "connect.sid",
-        "description": "Application session cookie established by successful Ring login. Swagger UI on the same host reuses the browser's session."
+        "description": "Ring session cookie established by successful Ring login. A Google session is also required; a running Ring connection can satisfy the Ring authentication requirement."
       }
     },
     "parameters": {

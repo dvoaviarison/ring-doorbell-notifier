@@ -28,7 +28,7 @@ export async function getRefreshToken() {
         const collection = db.collection(configCollectionName);
         const refreshToken = await collection.findOne({ key: 'refreshToken' });
         if (typeof refreshToken?.value !== 'string' || !refreshToken.value) {
-            throw new Error('No Ring refresh token found in MongoDB. Sign in through the web UI to connect.');
+            throw new Error('No Ring refresh token found in MongoDB. Sign in through A-Eye or the Ring authentication API.');
         }
 
         logger.info('Refresh token found in the database.');
