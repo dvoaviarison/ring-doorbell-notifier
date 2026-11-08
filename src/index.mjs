@@ -121,12 +121,6 @@ app.post('/update-slack-channel', (req, res) => {
   updateEnvFile({ key: 'SLACK_CHANNEL_ID', value: channelId }, res);
 });
 
-// POST endpoint to update slack channel ID
-app.post('/update-user-prompt', (req, res) => {
-  const userPrompt = req.body.userPrompt ?? req.body.text;
-  updateEnvFile({ key: 'APP_AI_USER_PROMPT', value: userPrompt }, res);
-});
-
 // POST endpoint to force notification for slack
 app.post('/capture', (req, res) => {
   const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
@@ -373,16 +367,6 @@ function isAllowedPushEndpoint(endpoint) {
     return false;
   }
 }
-
-// GET /env?name=ENV_VAR_NAME
-app.get('/env', (req, res) => {
-  const { name } = req.query;
-  if (name !== 'APP_AI_USER_PROMPT') {
-    return res.status(400).json({ error: 'Unsupported environment setting.' });
-  }
-  const value = process.env[name];
-  res.json({ [name]: value ?? null });
-});
 
 setupAuth(app, logger, async (refreshToken) => {
   await activateRingApi(refreshToken);

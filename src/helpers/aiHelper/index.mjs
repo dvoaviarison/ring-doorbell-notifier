@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from "../logHelper/index.mjs";
 import { GoogleAIFileManager } from "@google/generative-ai/server";
 import GeminiKeyManager from './geminiKeyManager/index.mjs';
+import { prompts } from './prompts.mjs';
 
 const { env } = process;
 
@@ -32,7 +33,7 @@ export async function getVideoDescriptionViaGemini(videoFileName, cameraName) {
                         mimeType: file.mimeType,
                     },
                 },
-                env.APP_AI_USER_PROMPT.replace(/%cameraName%/g, cameraName)
+                prompts.videoDescription.replace(/%cameraName%/g, cameraName)
             ]);
 
             const description = result.response.text();

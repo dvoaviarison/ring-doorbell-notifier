@@ -587,44 +587,6 @@
         }
       }
     },
-    "/env": {
-      "get": {
-        "tags": ["Settings"],
-        "summary": "Read the configurable AI user prompt",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": ["APP_AI_USER_PROMPT"]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Current prompt value",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "APP_AI_USER_PROMPT": {
-                      "type": "string",
-                      "nullable": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          }
-        }
-      }
-    },
     "/update-slack-channel": {
       "post": {
         "tags": ["Settings"],
@@ -658,71 +620,6 @@
           },
           "400": {
             "description": "A non-empty channelId is required",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Setting could not be updated",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/update-user-prompt": {
-      "post": {
-        "tags": ["Settings"],
-        "summary": "Update the AI user prompt",
-        "description": "The prompt can be supplied as userPrompt or text.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "userPrompt": {
-                    "type": "string"
-                  },
-                  "text": {
-                    "type": "string"
-                  }
-                },
-                "anyOf": [
-                  {
-                    "required": ["userPrompt"]
-                  },
-                  {
-                    "required": ["text"]
-                  }
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Setting updated",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "A non-empty prompt is required",
             "content": {
               "text/html": {
                 "schema": {

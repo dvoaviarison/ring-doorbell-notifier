@@ -33,7 +33,7 @@ describe('Ring authentication persistence', () => {
         const response = { redirect: jest.fn() };
 
         authMiddleware(
-            { path: '/update-user-prompt', session: undefined, headers: {} },
+            { path: '/capture', session: undefined, headers: {} },
             response,
             next,
             () => true
@@ -61,7 +61,7 @@ describe('Ring authentication persistence', () => {
         const response = { status: jest.fn().mockReturnThis(), json: jest.fn() };
 
         authMiddleware(
-            { path: '/update-user-prompt', session: undefined, headers: {} },
+            { path: '/capture', session: undefined, headers: {} },
             response,
             jest.fn(),
             () => false
