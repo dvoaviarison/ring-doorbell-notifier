@@ -19,6 +19,28 @@ export function createLiveViewRouter(getRingApi, logger) {
     }
   }
 
+  router.get('/battery', async (req, res) => {
+    const cameraName = req.query.cameraName;
+    if (typeof cameraName !== 'string' || !cameraName.trim()) {
+      return res.status(400).json({ error: 'A camera name is required.' });
+    }
+    const api = getRingApi();
+    if (!api) return res.status(503).json({ error: 'Ring is not connected.' });
+    try {
+      const camera = findCamera(await api.getLocations(), cameraName);
+      if (!camera) return res.status(404).json({ error: 'Camera not found.' });
+      const level = camera.batteryLevel;
+      if (level !== null && (typeof level !== 'number' || !Number.isFinite(level) || level < 0 || level > 100)) {
+        throw new Error('Ring returned an invalid battery level.');
+      }
+      res.set('Cache-Control', 'no-store');
+      return res.json({ batteryLevel: level });
+    } catch (error) {
+      logger.error('Could not load Ring camera battery level:', error);
+      return res.status(502).json({ error: 'Could not load camera battery level.' });
+    }
+  });
+
   router.get('/snapshot', async (req, res) => {
     const cameraName = req.query.cameraName;
     if (typeof cameraName !== 'string' || !cameraName.trim()) {

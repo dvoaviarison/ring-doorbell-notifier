@@ -16,7 +16,7 @@ let camera;
 
 beforeEach(async () => {
   session = { start: jest.fn().mockResolvedValue('v=0\r\nanswer'), end: jest.fn().mockResolvedValue(undefined) };
-  camera = { name: 'Front', createSimpleWebRtcSession: () => session, getSnapshot: jest.fn().mockResolvedValue(Buffer.from('jpeg')) };
+  camera = { name: 'Front', batteryLevel: 73, createSimpleWebRtcSession: () => session, getSnapshot: jest.fn().mockResolvedValue(Buffer.from('jpeg')) };
   ring = { getLocations: jest.fn().mockResolvedValue([{ cameras: [camera] }]) };
   logger = { error: jest.fn() };
   const app = express();
@@ -38,6 +38,25 @@ function post(path, body) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
 }
+
+test('serves battery levels and reports unavailable, invalid, and missing cameras', async () => {
+  const url = `${origin}/cameras/live/battery?cameraName=Front`;
+  const response = await fetch(url);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(await response.json()).toEqual({ batteryLevel: 73 });
+  camera.batteryLevel = 0;
+  expect(await (await fetch(url)).json()).toEqual({ batteryLevel: 0 });
+  camera.batteryLevel = null;
+  expect(await (await fetch(url)).json()).toEqual({ batteryLevel: null });
+  camera.batteryLevel = 101;
+  expect((await fetch(url)).status).toBe(502);
+  expect(logger.error).toHaveBeenCalled();
+  expect((await fetch(`${origin}/cameras/live/battery`)).status).toBe(400);
+  expect((await fetch(`${origin}/cameras/live/battery?cameraName=Missing`)).status).toBe(404);
+  ring = null;
+  expect((await fetch(url)).status).toBe(503);
+});
 
 test('serves camera snapshots and reports invalid or unavailable cameras', async () => {
   const response = await fetch(`${origin}/cameras/live/snapshot?cameraName=Front`);
