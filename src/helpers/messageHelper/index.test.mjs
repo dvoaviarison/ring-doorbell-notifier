@@ -1,4 +1,4 @@
-import { formatMessage } from './index.mjs';
+import { formatMessage, removeSlackChannelPrefix } from './index.mjs';
 
 describe('Can formatMessage', () => {
     it('should format the message correctly', () => {
@@ -12,6 +12,18 @@ describe('Can formatMessage', () => {
 
         // Assert
         expect(result).toBe(expectedMessage);
+    });
+
+    describe('removeSlackChannelPrefix', () => {
+        it.each([
+            ['@channel: Motion detected', 'Motion detected'],
+            ['  @CHANNEL @channel: Motion detected', 'Motion detected'],
+            ['@channeler detected', '@channeler detected'],
+            ['Motion detected', 'Motion detected'],
+            [null, null]
+        ])('normalizes %j', (input, expected) => {
+            expect(removeSlackChannelPrefix(input)).toBe(expected);
+        });
     });
 
     it('formats the notification without a recording link', () => {

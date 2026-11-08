@@ -804,7 +804,12 @@
             "format": "date-time"
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "description": "Event description without the camera name prefix"
+          },
+          "cameraName": {
+            "type": "string",
+            "description": "Name of the camera that recorded the event, when available"
           },
           "megaLink": {
             "type": "string",

@@ -15,6 +15,7 @@ jest.mock('../helpers/uploadHelper/index.mjs', () => ({
 }));
 
 jest.mock('../helpers/messageHelper/index.mjs', () => ({
+    ...jest.requireActual('../helpers/messageHelper/index.mjs'),
     formatMessage: jest.fn((body) => `@channel: ${body}`)
 }));
 
@@ -121,7 +122,8 @@ describe('handleRingNotification', () => {
             'Motion detected',
             'https://mega.example/video',
             expect.any(Date),
-            videoFileName
+            videoFileName,
+            'Front door'
         );
     });
 
@@ -165,13 +167,64 @@ describe('handleRingNotification', () => {
             'A person is at the front door.',
             'https://mega.example/video',
             expect.any(Date),
-            'Front door-2026-11-01_120000.mp4'
+            'Front door-2026-11-01_120000.mp4',
+            'Front door'
         );
         expect(notifyPushSubscribers).toHaveBeenCalledWith({
             description: 'A person is at the front door.',
             megaLink: 'https://mega.example/video',
             timestamp: expect.any(Date)
         });
+    });
+
+    it.each(['true', 'false'])('removes a matching camera prefix before saving and sending (AI=%s)', async (aiEnabled) => {
+        process.env.APP_ENABLE_AI = aiEnabled;
+        recordVideoFromCamera.mockResolvedValue(undefined);
+        getAIPoweredVideoDescription.mockResolvedValue('Front door: Motion detected');
+        uploadFileToMega.mockResolvedValue('https://mega.example/video');
+        sendSlackNotificationWithVideo.mockResolvedValue({});
+
+        await handleRingNotification({ name: 'Front door' }, {
+            android_config: { body: 'Front door: Motion detected' }
+        });
+
+        await new Promise(setImmediate);
+
+        expect(storeVideoEvent).toHaveBeenCalledWith(
+            'Motion detected',
+            'https://mega.example/video',
+            expect.any(Date),
+            'Front door-2026-11-01_120000.mp4',
+            'Front door'
+        );
+        expect(formatMessage).toHaveBeenCalledWith('Motion detected');
+        expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({
+            description: 'Motion detected'
+        }));
+    });
+
+    it.each([
+        ['true', '@channel: Front door: Motion detected'],
+        ['false', 'Front door: @channel: Motion detected'],
+        ['false', '@channel @channel: Motion detected']
+    ])('only adds the Slack channel mention when sending (AI=%s)', async (aiEnabled, body) => {
+        process.env.APP_ENABLE_AI = aiEnabled;
+        recordVideoFromCamera.mockResolvedValue(undefined);
+        getAIPoweredVideoDescription.mockResolvedValue(body);
+        uploadFileToMega.mockResolvedValue('https://mega.example/video');
+        sendSlackNotificationWithVideo.mockResolvedValue({});
+
+        await handleRingNotification({ name: 'Front door' }, { android_config: { body } });
+        await new Promise(setImmediate);
+
+        expect(storeVideoEvent).toHaveBeenCalledWith(
+            'Motion detected', 'https://mega.example/video', expect.any(Date),
+            'Front door-2026-11-01_120000.mp4', 'Front door'
+        );
+        expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({ description: 'Motion detected' }));
+        expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
+            '@channel: Motion detected', 'Front door-2026-11-01_120000.mp4'
+        );
     });
 
     it('sends the Slack video even when the Mega upload fails', async () => {
@@ -221,7 +274,8 @@ describe('handleRingNotification', () => {
             'Motion detected',
             'https://mega.example/video',
             expect.any(Date),
-            'Front door-2026-11-01_120000.mp4'
+            'Front door-2026-11-01_120000.mp4',
+            'Front door'
         );
         expect(notifyPushSubscribers).not.toHaveBeenCalled();
     });

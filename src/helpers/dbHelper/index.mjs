@@ -3,6 +3,7 @@ import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
 import path from 'node:path';
 import { purgeLocalFiles } from '../fileHelper/index.mjs';
 import { logger } from "../logHelper/index.mjs";
+import { removeSlackChannelPrefix } from '../messageHelper/index.mjs';
 import { trackPendingUpload } from '../pendingUploadHelper/index.mjs';
 import { uploadFileToMega } from '../uploadHelper/index.mjs';
 import { createVideoThumbnail } from '../videoThumbnailHelper/index.mjs';
@@ -94,7 +95,7 @@ async function uploadVideoThumbnail(videoFileName) {
     }
 }
 
-export async function storeVideoEvent(description, megaLink, timestamp = new Date(), videoFileName) {
+export async function storeVideoEvent(description, megaLink, timestamp = new Date(), videoFileName, cameraName) {
     const thumbnailLink = await uploadVideoThumbnail(videoFileName);
     try {
         await client.connect();
@@ -102,8 +103,9 @@ export async function storeVideoEvent(description, megaLink, timestamp = new Dat
         const collection = db.collection(eventsCollectionName);
         await collection.insertOne({
             timestamp,
-            description,
+            description: removeSlackChannelPrefix(description),
             megaLink,
+            ...(typeof cameraName === 'string' && cameraName ? { cameraName } : {}),
             ...(typeof thumbnailLink === 'string' && thumbnailLink ? { thumbnailLink } : {})
         });
     } catch (error) {
@@ -119,7 +121,7 @@ export async function getVideoEventsForDay(start, end) {
         const collection = db.collection(eventsCollectionName);
         const events = await collection.find(
             { timestamp: { $gte: start, $lt: end } },
-            { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1, thumbnailLink: 1 } }
+            { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1 } }
         )
             .sort({ timestamp: -1 })
             .toArray();

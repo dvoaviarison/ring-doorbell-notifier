@@ -121,20 +121,22 @@ describe('Ring refresh token persistence', () => {
         expect(client.close).not.toHaveBeenCalled();
     });
 
-    it('stores a video event with a UTC timestamp, Slack description, and Mega link', async () => {
+    it('stores a video event without the Slack channel prefix', async () => {
         const timestamp = new Date('2026-11-06T12:00:00.000Z');
 
         await storeVideoEvent(
             '@channel: Motion detected',
             'https://mega.example/video',
             timestamp,
-            'Front door-2026-11-06_120000.mp4'
+            'Front door-2026-11-06_120000.mp4',
+            'Front door'
         );
 
         expect(client.insertOne).toHaveBeenCalledWith({
             timestamp,
-            description: '@channel: Motion detected',
+            description: 'Motion detected',
             megaLink: 'https://mega.example/video',
+            cameraName: 'Front door',
             thumbnailLink: 'https://mega.example/thumbnail'
         });
         expect(createVideoThumbnail).toHaveBeenCalledWith('Front door-2026-11-06_120000.mp4');
@@ -190,6 +192,7 @@ describe('Ring refresh token persistence', () => {
         const events = [{
             _id: { toString: () => 'event-id' },
             description: 'Motion detected',
+            cameraName: 'Front door',
             thumbnailLink: 'https://mega.example/thumbnail'
         }];
         const start = new Date('2026-11-06T00:00:00.000Z');
@@ -200,13 +203,14 @@ describe('Ring refresh token persistence', () => {
             {
                 id: 'event-id',
                 description: 'Motion detected',
+                cameraName: 'Front door',
                 thumbnailLink: 'https://mega.example/thumbnail'
             }
         ]);
 
         expect(client.find).toHaveBeenCalledWith(
             { timestamp: { $gte: start, $lt: end } },
-            { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1, thumbnailLink: 1 } }
+            { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1 } }
         );
         expect(eventCursor.sort).toHaveBeenCalledWith({ timestamp: -1 });
         expect(client.close).not.toHaveBeenCalled();

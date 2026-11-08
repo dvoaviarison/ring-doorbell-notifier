@@ -3,7 +3,7 @@ import { getFormattedDateTime } from '../helpers/dateHelper/index.mjs';
 import { sendSlackNotificationWithVideo } from '../helpers/notificationHelper/index.mjs';
 import { uploadFileToMega } from '../helpers/uploadHelper/index.mjs';
 import { recordVideoFromCamera } from '../helpers/videoHelper/index.mjs';
-import { formatMessage } from '../helpers/messageHelper/index.mjs';
+import { formatMessage, removeSlackChannelPrefix } from '../helpers/messageHelper/index.mjs';
 import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
 import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
 import { trackPendingUpload } from '../helpers/pendingUploadHelper/index.mjs';
@@ -32,7 +32,18 @@ export async function handleRingNotification(camera, notif) {
                 return notif.android_config.body;
             })
         : Promise.resolve(notif.android_config.body);
-    const messagePromise = descriptionPromise.then((description) => formatMessage(description));
+    const eventDescriptionPromise = descriptionPromise.then((description) => {
+        const withoutSlackPrefix = removeSlackChannelPrefix(description);
+        if (typeof withoutSlackPrefix !== 'string' || typeof camera.name !== 'string' || !camera.name) {
+            return withoutSlackPrefix;
+        }
+        const prefix = `${camera.name}:`;
+        const trimmed = withoutSlackPrefix.trimStart();
+        return trimmed.startsWith(prefix)
+            ? removeSlackChannelPrefix(trimmed.slice(prefix.length).trimStart())
+            : withoutSlackPrefix;
+    });
+    const messagePromise = eventDescriptionPromise.then((description) => formatMessage(description));
 
     void megaUploadPromise
         .then(async (megaLink) => {
@@ -44,8 +55,8 @@ export async function handleRingNotification(camera, notif) {
             }
 
             try {
-                const description = await descriptionPromise;
-                await storeVideoEvent(description, megaLink, timestamp, videoFileName);
+                const description = await eventDescriptionPromise;
+                await storeVideoEvent(description, megaLink, timestamp, videoFileName, camera.name);
                 logger.info('Mega upload event saved to MongoDB');
                 await notifyPushSubscribers({ description, megaLink, timestamp });
             } catch (error) {

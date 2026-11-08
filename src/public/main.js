@@ -196,7 +196,7 @@ function renderEvents(feed, events) {
 
     const description = document.createElement('span');
     description.className = 'timeline-description';
-    description.textContent = getEventDisplayDescription(event.description);
+    description.textContent = getEventDisplayDescription(event);
 
     selectButton.classList.add('has-preview');
     const preview = document.createElement('span');
@@ -253,7 +253,7 @@ function renderSelectedEvent() {
     if (typeof event.thumbnailLink === 'string' && event.thumbnailLink) {
       player.poster = `/events/${encodeURIComponent(event.id)}/thumbnail`;
     }
-    player.title = `Video: ${getEventDisplayDescription(event.description)}`;
+    player.title = `Video: ${getEventDisplayDescription(event)}`;
     player.controls = true;
     player.playsInline = true;
     player.preload = 'metadata';
@@ -270,7 +270,7 @@ function renderSelectedEvent() {
   eventMeta.className = 'selected-event-meta';
   const description = document.createElement('p');
   description.className = 'event-description mb-1';
-  description.textContent = getEventDisplayDescription(event.description);
+  description.textContent = getEventDisplayDescription(event);
   const timestamp = document.createElement('time');
   timestamp.className = 'event-timestamp text-muted';
   if (!Number.isNaN(eventTime.getTime())) {
@@ -305,11 +305,16 @@ function getLocalDayBounds(day) {
   return { start, end };
 }
 
-function getEventDisplayDescription(description) {
-  if (typeof description !== 'string' || !description.trim()) {
-    return 'Camera event';
-  }
-  return description.replace(/^\s*@channel\s*:?\s*/i, '');
+function getEventDisplayDescription(event) {
+  const description = typeof event.description === 'string'
+    ? event.description.trim()
+    : '';
+  const cameraName = typeof event.cameraName === 'string' ? event.cameraName.trim() : '';
+  const prefix = `${cameraName}:`;
+  const message = cameraName && description.startsWith(prefix)
+    ? description.slice(prefix.length).trimStart()
+    : description;
+  return cameraName ? `${cameraName}: ${message || 'Camera event'}` : message || 'Camera event';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
