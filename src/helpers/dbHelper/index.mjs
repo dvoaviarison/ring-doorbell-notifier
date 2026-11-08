@@ -20,6 +20,11 @@ const dbName = env.MONGO_DB_NAME || 'ringnotifier';
 const configCollectionName = env.MONGO_DB_COLLECTION_NAME || 'configuration';
 const eventsCollectionName = env.MONGO_DB_EVENTS_COLLECTION_NAME || 'events';
 const pushSubscriptionsCollectionName = env.MONGO_DB_PUSH_SUBSCRIPTIONS_COLLECTION_NAME || 'pushSubscriptions';
+const legacyEventCategories = new Map([
+    ['car passing by', 'vehicle'],
+    ['person(s)', 'person'],
+    ['animals', 'animal']
+]);
 
 export async function getRefreshToken() {
     try {
@@ -95,7 +100,7 @@ async function uploadVideoThumbnail(videoFileName) {
     }
 }
 
-export async function storeVideoEvent(description, megaLink, timestamp = new Date(), videoFileName, cameraName) {
+export async function storeVideoEvent(description, megaLink, timestamp = new Date(), videoFileName, cameraName, category = null) {
     const thumbnailLink = await uploadVideoThumbnail(videoFileName);
     try {
         await client.connect();
@@ -104,6 +109,7 @@ export async function storeVideoEvent(description, megaLink, timestamp = new Dat
         await collection.insertOne({
             timestamp,
             description: removeSlackChannelPrefix(description),
+            category,
             megaLink,
             ...(typeof cameraName === 'string' && cameraName ? { cameraName } : {}),
             ...(typeof thumbnailLink === 'string' && thumbnailLink ? { thumbnailLink } : {})
@@ -121,11 +127,15 @@ export async function getVideoEventsForDay(start, end) {
         const collection = db.collection(eventsCollectionName);
         const events = await collection.find(
             { timestamp: { $gte: start, $lt: end } },
-            { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1 } }
+            { projection: { _id: 1, timestamp: 1, description: 1, category: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1 } }
         )
             .sort({ timestamp: -1 })
             .toArray();
-        return events.map(({ _id, ...event }) => ({ ...event, id: _id.toString() }));
+        return events.map(({ _id, ...event }) => ({
+            ...event,
+            ...(legacyEventCategories.has(event.category) ? { category: legacyEventCategories.get(event.category) } : {}),
+            id: _id.toString()
+        }));
     } catch (error) {
         logger.error('Error connecting to MongoDB or fetching daily Mega upload events:', error);
         throw error;

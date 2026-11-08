@@ -705,6 +705,12 @@
             "type": "string",
             "description": "Event description without the camera name prefix"
           },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "enum": ["delivery", "vehicle", "person", "animal", "uncategorized"],
+            "description": "AI event category; null when AI is unavailable or disabled, and absent on older events"
+          },
           "cameraName": {
             "type": "string",
             "description": "Name of the camera that recorded the event, when available"

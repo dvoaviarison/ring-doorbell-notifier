@@ -24,26 +24,26 @@ export async function handleRingNotification(camera, notif) {
     const releaseSlackFile = trackPendingUpload(`${env.APP_RECORDING_FOLDER}/${videoFileName}`);
     const megaUploadPromise = uploadFileToMega(videoFileName);
 
-    const descriptionPromise = env.APP_ENABLE_AI === 'true'
+    const eventPromise = env.APP_ENABLE_AI === 'true'
         ? getAIPoweredVideoDescription(videoFileName, camera.name)
-            .then((description) => description || notif.android_config.body)
             .catch((error) => {
                 logger.error('Could not generate an AI description; using the Ring notification text:', error);
-                return notif.android_config.body;
+                return { description: notif.android_config.body, category: null };
             })
-        : Promise.resolve(notif.android_config.body);
-    const eventDescriptionPromise = descriptionPromise.then((description) => {
+        : Promise.resolve({ description: notif.android_config.body, category: null });
+    const normalizedEventPromise = eventPromise.then(({ description, category }) => {
         const withoutSlackPrefix = removeSlackChannelPrefix(description);
         if (typeof withoutSlackPrefix !== 'string' || typeof camera.name !== 'string' || !camera.name) {
-            return withoutSlackPrefix;
+            return { description: withoutSlackPrefix, category };
         }
         const prefix = `${camera.name}:`;
         const trimmed = withoutSlackPrefix.trimStart();
-        return trimmed.startsWith(prefix)
+        const normalizedDescription = trimmed.startsWith(prefix)
             ? removeSlackChannelPrefix(trimmed.slice(prefix.length).trimStart())
             : withoutSlackPrefix;
+        return { description: normalizedDescription, category };
     });
-    const messagePromise = eventDescriptionPromise.then((description) => formatMessage(description));
+    const messagePromise = normalizedEventPromise.then(({ description }) => formatMessage(description));
 
     void megaUploadPromise
         .then(async (megaLink) => {
@@ -55,8 +55,8 @@ export async function handleRingNotification(camera, notif) {
             }
 
             try {
-                const description = await eventDescriptionPromise;
-                await storeVideoEvent(description, megaLink, timestamp, videoFileName, camera.name);
+                const { description, category } = await normalizedEventPromise;
+                await storeVideoEvent(description, megaLink, timestamp, videoFileName, camera.name, category);
                 logger.info('Mega upload event saved to MongoDB');
                 await notifyPushSubscribers({ description, megaLink, timestamp });
             } catch (error) {

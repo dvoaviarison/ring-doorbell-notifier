@@ -6,6 +6,7 @@ import GeminiKeyManager from './geminiKeyManager/index.mjs';
 import { prompts } from './prompts.mjs';
 
 const { env } = process;
+const eventCategories = new Set(['delivery', 'vehicle', 'person', 'animal', 'uncategorized']);
 
 let activeGeminiKeyManager = new GeminiKeyManager(env.APP_AI_GEMINI_API_KEYS);
 
@@ -23,7 +24,10 @@ export async function getVideoDescriptionViaGemini(videoFileName, cameraName) {
         const apiKey = activeGeminiKeyManager.getCurrentKey();
         try {
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: env.APP_AI_GEMINI_MODEL });
+            const model = genAI.getGenerativeModel({
+                model: env.APP_AI_GEMINI_MODEL,
+                generationConfig: { responseMimeType: 'application/json' }
+            });
             const file = await uploadToGemini(videoFileName);
 
             const result = await model.generateContent([
@@ -36,9 +40,13 @@ export async function getVideoDescriptionViaGemini(videoFileName, cameraName) {
                 prompts.videoDescription.replace(/%cameraName%/g, cameraName)
             ]);
 
-            const description = result.response.text();
-            logger.info(`Gemini video description ready: ${description}`);
-            return description;
+            const event = JSON.parse(result.response.text());
+            if (!event || typeof event.description !== 'string' || !event.description.trim()
+                || !eventCategories.has(event.category)) {
+                throw new Error('Gemini returned an invalid video description or event category.');
+            }
+            logger.info(`Gemini video description ready: ${event.description}, category: ${event.category}`);
+            return { description: event.description.trim(), category: event.category };
         } catch (error) {
             logger.error(`Failed to get video description from gemini with current key: ${error}`);
             activeGeminiKeyManager.moveNext();

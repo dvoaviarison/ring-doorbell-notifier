@@ -129,12 +129,14 @@ describe('Ring refresh token persistence', () => {
             'https://mega.example/video',
             timestamp,
             'Front door-2026-11-06_120000.mp4',
-            'Front door'
+            'Front door',
+            'delivery'
         );
 
         expect(client.insertOne).toHaveBeenCalledWith({
             timestamp,
             description: 'Motion detected',
+            category: 'delivery',
             megaLink: 'https://mega.example/video',
             cameraName: 'Front door',
             thumbnailLink: 'https://mega.example/thumbnail'
@@ -166,6 +168,7 @@ describe('Ring refresh token persistence', () => {
         expect(client.insertOne).toHaveBeenCalledWith({
             timestamp: new Date('2026-11-06T12:00:00.000Z'),
             description: 'Motion detected',
+            category: null,
             megaLink: 'https://mega.example/video'
         });
         expect(uploadFileToMega).not.toHaveBeenCalled();
@@ -184,6 +187,7 @@ describe('Ring refresh token persistence', () => {
         expect(client.insertOne).toHaveBeenCalledWith({
             timestamp: new Date('2026-11-06T12:00:00.000Z'),
             description: 'Motion detected',
+            category: null,
             megaLink: 'https://mega.example/video'
         });
     });
@@ -192,6 +196,7 @@ describe('Ring refresh token persistence', () => {
         const events = [{
             _id: { toString: () => 'event-id' },
             description: 'Motion detected',
+            category: 'person',
             cameraName: 'Front door',
             thumbnailLink: 'https://mega.example/thumbnail'
         }];
@@ -203,6 +208,7 @@ describe('Ring refresh token persistence', () => {
             {
                 id: 'event-id',
                 description: 'Motion detected',
+                category: 'person',
                 cameraName: 'Front door',
                 thumbnailLink: 'https://mega.example/thumbnail'
             }
@@ -210,10 +216,23 @@ describe('Ring refresh token persistence', () => {
 
         expect(client.find).toHaveBeenCalledWith(
             { timestamp: { $gte: start, $lt: end } },
-            { projection: { _id: 1, timestamp: 1, description: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1 } }
+            { projection: { _id: 1, timestamp: 1, description: 1, category: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1 } }
         );
         expect(eventCursor.sort).toHaveBeenCalledWith({ timestamp: -1 });
         expect(client.close).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['car passing by', 'vehicle'],
+        ['person(s)', 'person'],
+        ['animals', 'animal']
+    ])('translates legacy %s categories to %s on read', async (oldCategory, category) => {
+        eventCursor.toArray.mockResolvedValue([{
+            _id: { toString: () => 'event-id' },
+            category: oldCategory
+        }]);
+        await expect(getVideoEventsForDay(new Date('2026-11-06'), new Date('2026-11-07')))
+            .resolves.toEqual([{ id: 'event-id', category }]);
     });
 
     it('loads a MEGA thumbnail link by event id', async () => {
