@@ -8,6 +8,56 @@ Simple, Gemini AI-powered ([Gemini](https://ai.google.dev/gemini-api/docs/models
 - With this you can enjoy pretty much the same premium features of ring doorbells for totally FREE.
 <img src="./docs/imgs/slack-notification.jpeg" alt="Slack notification with a video recording" width="400"/>
 
+## Database diagram
+
+The app stores data in MongoDB collections for account configuration, Ring ownership, video events, and browser push subscriptions. `pushCategories` is a configuration record in the `configuration` collection, not a separate collection. `GoogleIdentity` is a logical account reference rather than a collection; ownership participants and push subscription data are stored within their respective documents.
+
+<!-- mermaid-checked: every attribute is `<type> <name> [<key>] ["<description>"]` with at most one of PK/FK/UK, no \n in descriptions, no {} in descriptions, every relationship label is double-quoted -->
+```mermaid
+erDiagram
+    GoogleIdentity ||--o{ Configuration : "has settings"
+    GoogleIdentity ||--o{ PushSubscription : "registers"
+    GoogleIdentity |{--o| RingOwnership : "owns or joins"
+    RingOwnership ||--o{ RingEvent : "has events"
+    GoogleIdentity {
+        string email PK
+    }
+    Configuration {
+        ObjectId id PK
+        string accountEmail FK
+        string key
+        string type "includes pushCategories"
+        mixed value "category list when type is pushCategories"
+        string botToken
+        string channelId
+        string signingSecret
+    }
+    RingOwnership {
+        string id PK
+        string ownerEmail
+        array participants
+        array invitations
+        boolean releasing
+    }
+    RingEvent {
+        ObjectId id PK
+        string ringAccountId FK
+        date timestamp
+        string description
+        string category
+        string megaLink
+        string cameraName
+        string thumbnailLink
+    }
+    PushSubscription {
+        ObjectId id PK
+        string accountEmail FK
+        string endpoint UK
+        object subscription
+        date updatedAt
+    }
+```
+
 ## How to run this locally
 - Configure Google OAuth on this backend: set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ALLOWED_ORIGINS` (comma-separated frontend origins), and `A_EYE_SESSION_SECRET` (at least 32 random bytes; generate with `openssl rand -hex 32`). Register each allowed origin's `/auth/google/callback` URL as an authorized redirect URI in Google Cloud, for example `http://localhost:5173/auth/google/callback` and `https://a-eye-home.onrender.com/auth/google/callback`. Use the same OAuth web client for both origins. HTTPS is required except for localhost.
 - Registration is open to any Google account with a verified email; first sign-in creates access without an invitation. `GOOGLE_ALLOWED_EMAILS`, if left in an existing environment, is ignored and no longer restricts access. Google OAuth consent-screen publishing and test-user restrictions still apply independently.
