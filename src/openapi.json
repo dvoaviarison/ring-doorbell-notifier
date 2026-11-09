@@ -34,6 +34,82 @@
     }
   ],
   "paths": {
+    "/settings/ring-access": {
+      "get": {
+        "tags": ["Settings"],
+        "summary": "Get the signed-in user's Ring membership and invitations",
+        "responses": {
+          "200": {
+            "description": "Membership and pending invitations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["membership", "invitations"],
+                  "properties": {
+                    "membership": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "ringAccountId": { "type": "string" },
+                        "ownerEmail": { "type": "string" },
+                        "role": { "type": "string", "enum": ["owner", "member"] },
+                        "participants": { "type": "array", "items": { "type": "string" }, "description": "Visible only to the owner" },
+                        "invitations": { "type": "array", "items": { "type": "string" }, "description": "Visible only to the owner" }
+                      }
+                    },
+                    "invitations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": { "ringAccountId": { "type": "string" }, "ownerEmail": { "type": "string" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/ring-access/invitations": {
+      "post": {
+        "tags": ["Settings"],
+        "summary": "Invite a Google user (Ring owner only)",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["email"], "properties": { "email": { "type": "string" } } } } }
+        },
+        "responses": { "204": { "description": "Invitation saved" }, "403": { "description": "Not an owner" }, "409": { "description": "User already has Ring access" } }
+      }
+    },
+    "/settings/ring-access/invitations/{ringAccountId}/accept": {
+      "post": {
+        "tags": ["Settings"],
+        "summary": "Accept an invitation addressed to the signed-in user",
+        "parameters": [{ "name": "ringAccountId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "204": { "description": "Invitation accepted" }, "404": { "description": "Invitation unavailable" }, "409": { "description": "User already has Ring access" } }
+      }
+    },
+    "/settings/ring-access/members": {
+      "delete": {
+        "tags": ["Settings"],
+        "summary": "Remove a member or cancel an invitation (Ring owner only)",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["email"], "properties": { "email": { "type": "string" } } } } }
+        },
+        "responses": { "204": { "description": "Access removed" }, "403": { "description": "Not an owner" } }
+      }
+    },
+    "/settings/ring-access/leave": {
+      "post": {
+        "tags": ["Settings"],
+        "summary": "Leave a shared account or release an owned Ring account",
+        "responses": { "204": { "description": "Membership removed" }, "404": { "description": "No membership" }, "500": { "description": "Release failed; the owner can retry" } }
+      }
+    },
     "/health": {
       "get": {
         "tags": ["Health"],
@@ -100,7 +176,7 @@
       "post": {
         "tags": ["Ring"],
         "summary": "Sign in to Ring",
-        "description": "If Ring requires two-factor verification, the response indicates that an MFA code is needed. The connection is saved for the signed-in Google account.",
+        "description": "If Ring requires two-factor verification, the response indicates that an MFA code is needed. A Ring profile can be owned by only one Google account, and a Google account can own or join only one Ring profile.",
         "requestBody": {
           "required": true,
           "content": {
@@ -590,7 +666,8 @@
     "/settings/slack": {
       "get": {
         "tags": ["Settings"],
-        "summary": "Get the signed-in user's Slack settings without revealing secrets",
+        "summary": "Get the Ring owner's Slack settings without revealing secrets",
+        "description": "Available only to the signed-in Ring owner.",
         "responses": {
           "200": {
             "description": "Channel and secret configuration status",
@@ -612,8 +689,8 @@
       },
       "put": {
         "tags": ["Settings"],
-        "summary": "Update the signed-in user's Slack settings",
-        "description": "Omitted or empty secret fields retain their existing values.",
+        "summary": "Update the Ring owner's Slack settings",
+        "description": "Available only to the signed-in Ring owner. Omitted or empty secret fields retain their existing values.",
         "requestBody": {
           "required": true,
           "content": {
@@ -659,7 +736,7 @@
       "get": {
         "tags": ["Settings"],
         "summary": "Get the signed-in user's saved Slack secrets",
-        "description": "Returns only the current Google account's secrets. Responses are not cached.",
+        "description": "Available only to the signed-in Ring owner. Returns the owner's secrets. Responses are not cached.",
         "responses": {
           "200": {
             "description": "Saved Slack secrets, or empty strings when unset",

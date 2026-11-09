@@ -7,11 +7,10 @@ import { logger } from "./helpers/logHelper/index.mjs";
 const { env } = process;
 let autoStopScheduled = false;
 
-export async function run(ringApi, email, ringAccountId) {
-    if (typeof email !== 'string' || !email.trim()) {
-        throw new TypeError('A Google account email is required to run the Ring notifier.');
+export async function run(ringApi, ringAccountId, getRecipients) {
+    if (typeof getRecipients !== 'function') {
+        throw new TypeError('A recipient lookup is required to run the Ring notifier.');
     }
-    const accountEmail = email.trim().toLowerCase();
     const subscriptions = [];
 
     if (env.APP_AUTO_STOP_MS && !autoStopScheduled) {
@@ -28,9 +27,10 @@ export async function run(ringApi, email, ringAccountId) {
         allCameras?.forEach((camera) => {
             subscriptions.push(camera.onNewNotification.subscribe(async (notif) => {
                 try {
-                    await handleRingNotification(camera, notif, accountEmail, ringAccountId);
-                } catch {
-                    logger.error('Could not process Ring notification for this account.');
+                    const recipients = await getRecipients();
+                    if (recipients.length) await handleRingNotification(camera, notif, recipients, ringAccountId);
+                } catch (error) {
+                    logger.error('Could not process Ring notification for this account:', error);
                 } finally {
                     purgeLocalFiles();
                 }

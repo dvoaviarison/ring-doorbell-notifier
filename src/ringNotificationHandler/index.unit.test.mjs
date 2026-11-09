@@ -69,6 +69,13 @@ describe('handleRingNotification', () => {
         process.env.APP_RECORDING_FOLDER = '/recordings';
         process.env.APP_ENABLE_AI = 'false';
         jest.clearAllMocks();
+        getSlackSettings.mockReset();
+        sendSlackNotificationWithVideo.mockReset();
+        trackPendingUpload.mockReset().mockImplementation(() => jest.fn());
+        recordVideoFromCamera.mockReset();
+        uploadFileToMega.mockReset();
+        storeVideoEvent.mockReset();
+        notifyPushSubscribers.mockReset();
         getSlackSettings.mockResolvedValue(slackSettings);
         storeVideoEvent.mockResolvedValue(undefined);
     });
@@ -79,6 +86,60 @@ describe('handleRingNotification', () => {
         } else {
             process.env.APP_ENABLE_AI = previousAiEnabled;
         }
+    });
+
+    it('records and uploads once while notifying each linked account', async () => {
+        const secondSettings = { botToken: 'second-token', channelId: 'second-channel' };
+        getSlackSettings.mockImplementation(async email => email === accountEmail ? slackSettings : secondSettings);
+        recordVideoFromCamera.mockResolvedValue(undefined);
+        uploadFileToMega.mockResolvedValue('https://mega.example/video');
+        sendSlackNotificationWithVideo.mockResolvedValue({});
+        const camera = { name: 'Front door' };
+        await handleAccountNotification(camera, {
+            android_config: { body: 'Motion detected' },
+            data: { event: { ding: { id: 'event-1' } } }
+        }, [accountEmail, 'second@example.com', accountEmail], '123');
+        await new Promise(setImmediate);
+        expect(recordVideoFromCamera).toHaveBeenCalledTimes(1);
+        expect(uploadFileToMega).toHaveBeenCalledTimes(1);
+        expect(storeVideoEvent).toHaveBeenCalledTimes(1);
+        expect(storeVideoEvent).toHaveBeenCalledWith(
+            'Motion detected', 'https://mega.example/video', expect.any(Date),
+            videoFileName, 'Front door', null, '123', 'event-1'
+        );
+        expect(sendSlackNotificationWithVideo).toHaveBeenCalledTimes(1);
+        expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith('@channel: Motion detected', videoFileName, slackSettings);
+        expect(notifyPushSubscribers).toHaveBeenCalledTimes(2);
+        expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({ megaLink: 'https://mega.example/video' }), accountEmail);
+        expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({ megaLink: 'https://mega.example/video' }), 'second@example.com');
+    });
+
+    it('keeps the recording when the owner Slack delivery fails', async () => {
+        const releaseFile = jest.fn();
+        trackPendingUpload.mockReturnValue(releaseFile);
+        getSlackSettings.mockResolvedValue(slackSettings);
+        recordVideoFromCamera.mockResolvedValue(undefined);
+        uploadFileToMega.mockResolvedValue('https://mega.example/video');
+        sendSlackNotificationWithVideo.mockRejectedValueOnce(new Error('Slack unavailable')).mockResolvedValueOnce({});
+        await expect(handleAccountNotification({ name: 'Front door' }, {
+            android_config: { body: 'Motion detected' }
+        }, [accountEmail, 'second@example.com'], '123')).rejects.toThrow('Slack unavailable');
+        expect(sendSlackNotificationWithVideo).toHaveBeenCalledTimes(1);
+        expect(releaseFile).not.toHaveBeenCalled();
+    });
+
+    it('continues recording and notifying members if the owner Slack settings lookup fails', async () => {
+        getSlackSettings.mockRejectedValueOnce(new Error('settings unavailable')).mockResolvedValueOnce(slackSettings);
+        recordVideoFromCamera.mockResolvedValue(undefined);
+        uploadFileToMega.mockResolvedValue('https://mega.example/video');
+        sendSlackNotificationWithVideo.mockResolvedValue({});
+        await handleAccountNotification({ name: 'Front door' }, {
+            android_config: { body: 'Motion detected' }
+        }, [accountEmail, 'second@example.com'], '123');
+        await new Promise(setImmediate);
+        expect(recordVideoFromCamera).toHaveBeenCalledTimes(1);
+        expect(sendSlackNotificationWithVideo).not.toHaveBeenCalled();
+        expect(notifyPushSubscribers).toHaveBeenCalledTimes(2);
     });
 
     it('sends the Slack video without waiting for the independent Mega upload', async () => {

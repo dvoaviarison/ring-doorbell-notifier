@@ -15,18 +15,21 @@ import { notifyPushSubscribers } from '../helpers/pushNotificationHelper/index.m
 const { env } = process;
 const recordingDurationSec = 10;
 
-export async function handleRingNotification(camera, notif, email, ringAccountId) {
-    if (typeof email !== 'string' || !email.trim()) {
-        throw new TypeError('A Google account email is required to handle Ring notifications.');
+export async function handleRingNotification(camera, notif, emails, ringAccountId) {
+    const recipients = Array.isArray(emails) ? emails : [emails];
+    if (!recipients.length || recipients.some(email => typeof email !== 'string' || !email.trim())) {
+        throw new TypeError('At least one Google account email is required to handle Ring notifications.');
     }
-    const accountEmail = email.trim().toLowerCase();
-    let slackSettings = null;
+    const accountEmails = [...new Set(recipients.map(email => email.trim().toLowerCase()))];
+    const accountEmail = accountEmails[0];
+    let settings;
     try {
-        slackSettings = await getSlackSettings(accountEmail);
-    } catch {
-        logger.error('Could not load account Slack settings; recording will continue without Slack.');
+        settings = await getSlackSettings(accountEmail);
+    } catch (error) {
+        logger.error('Could not load the Ring owner’s Slack settings:', error);
     }
-    const slackConfigured = Boolean(slackSettings?.botToken && slackSettings?.channelId);
+    const slackTargets = settings?.botToken && settings?.channelId ? [{ settings }] : [];
+    const slackConfigured = slackTargets.length > 0;
     const accountTag = createHash('sha256').update(accountEmail).digest('hex').slice(0, 12);
     const cameraName = String(camera.name ?? 'camera').replace(/[\\/]/g, '_');
     const videoFileName = `${cameraName}-${accountTag}-${getFormattedDateTime()}-${randomUUID()}.mp4`;
@@ -81,9 +84,10 @@ export async function handleRingNotification(camera, notif, email, ringAccountId
                 await storeVideoEvent(description, megaLink, timestamp, videoFileName, camera.name, category, ringAccountId, ringEventId);
                 eventSaved = true;
                 logger.info('Mega upload event saved to MongoDB');
-                await notifyPushSubscribers({ description, megaLink, timestamp }, accountEmail);
-            } catch {
-                logger.error('Failed to save account Mega upload event to MongoDB.');
+                await Promise.all(accountEmails.map(email =>
+                    notifyPushSubscribers({ description, megaLink, timestamp }, email)));
+            } catch (error) {
+                logger.error('Failed to save or notify the account Mega upload event:', error);
             }
         })
         .catch(() => logger.error('Failed to upload video to Mega.'))
@@ -104,11 +108,12 @@ export async function handleRingNotification(camera, notif, email, ringAccountId
     }
 
     logger.info('Sending Slack notification with video...');
-    try {
-        await sendSlackNotificationWithVideo(message, videoFileName, slackSettings);
-    } catch (error) {
-        logger.error('Failed to send video to Slack; keeping the recording for retry.');
-        throw error;
+    const deliveries = await Promise.allSettled(slackTargets.map(({ settings }) =>
+        sendSlackNotificationWithVideo(message, videoFileName, settings)));
+    const failed = deliveries.find(result => result.status === 'rejected');
+    if (failed) {
+        logger.error('Failed to send video to at least one Slack account; keeping the recording for retry.', failed.reason);
+        throw failed.reason;
     }
 
     releaseSlackFile();

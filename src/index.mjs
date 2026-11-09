@@ -18,13 +18,17 @@ import {
   updateSlackSettings,
   getSlackSigningCandidates,
   listRingAccounts,
-  storeRefreshToken
+  storeRefreshToken,
+  deleteAccountRefreshToken,
+  getRingOwnershipCollection
 } from './helpers/dbHelper/index.mjs';
 import { getPushConfiguration } from './helpers/pushNotificationHelper/index.mjs';
 import { openMegaFileStream } from './helpers/videoStreamHelper/index.mjs';
 import { createLiveViewRouter } from './helpers/liveViewHelper/index.mjs';
 import { createAccountRingManager } from './helpers/accountRingHelper/index.mjs';
 import { createSlackSettingsRouter } from './helpers/slackSettingsHelper/index.mjs';
+import { createRingOwnershipRouter, createRingOwnershipStore } from './helpers/ringOwnershipHelper/index.mjs';
+import { createRingAccessMiddleware } from './helpers/ringOwnershipHelper/access.mjs';
 import express from 'express';
 import { readFileSync } from 'node:fs';
 import path from 'path';
@@ -39,14 +43,16 @@ const port = env.APP_SERVER_PORT;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const apiSpec = JSON.parse(readFileSync(path.join(__dirname, 'openapi.json'), 'utf8'));
+const ownership = createRingOwnershipStore(await getRingOwnershipCollection());
+await ownership.initialize();
 const ringAccounts = createAccountRingManager({
   createApi: getLoggedInRingApi, run, logger,
-  saveToken: storeRefreshToken
+  saveToken: storeRefreshToken, ownership
 });
 
-async function capture(cameraName, accountEmail) {
-  const ringApi = ringAccounts.get(accountEmail);
-  const ringAccountId = ringAccounts.getRingAccountId(accountEmail);
+async function capture(cameraName, ownerEmail, recipients) {
+  const ringApi = ringAccounts.get(ownerEmail);
+  const ringAccountId = ringAccounts.getRingAccountId(ownerEmail);
   if (!ringApi) {
     throw new Error('Ring is not authenticated yet. Sign in to Ring first.');
   }
@@ -55,7 +61,7 @@ async function capture(cameraName, accountEmail) {
   const camera = findCamera(locations, cameraName);
   if (!camera) throw new Error('Camera not found.');
   const notif = { android_config: { body: `There is a motion at your ${camera.name}` } };
-  const notification = await handleRingNotification(camera, notif, accountEmail, ringAccountId);
+  const notification = await handleRingNotification(camera, notif, recipients, ringAccountId);
   purgeLocalFiles();
   return notification;
 }
@@ -71,11 +77,16 @@ app.use(createAccessMiddleware(googleAuth, req => resolveSlackAccount(req, async
 
 // Configure session and Ring authentication
 setupSession(app);
-app.use((req, res, next) => authMiddleware(req, res, next, email => Boolean(ringAccounts.get(email))));
+app.use(createRingAccessMiddleware(ownership, logger));
+app.use((req, res, next) => authMiddleware(req, res, next, () => Boolean(ringAccounts.get(req.ringOwner))));
 app.use(contextMiddleware);
 
 setupApiDocs(app, apiSpec);
 app.use('/settings', createSlackSettingsRouter({ getSlackSettings, updateSlackSettings, logger }));
+app.use('/settings/ring-access', createRingOwnershipRouter(ownership, logger, async email => {
+  await ringAccounts.deactivate(email);
+  await deleteAccountRefreshToken(email);
+}));
 
 // Healthcheck endpoint
 app.get('/health', (req, res) => {
@@ -95,11 +106,12 @@ app.post('/capture', (req, res) => {
   if (typeof cameraName !== 'string' || !cameraName.trim()) {
     return res.status(400).send('Select a camera before starting a capture.');
   }
-  if (!ringAccounts.get(req.accountEmail)) {
+  if (!ringAccounts.get(req.ringOwner)) {
     return res.status(503).send('Ring is not connected. Sign in through A-Eye or the Ring authentication API.');
   }
 
-  void capture(cameraName.trim(), req.accountEmail).catch((error) => {
+  const recipients = [req.ringOwner, ...req.ringMembership.participants.filter(email => email !== req.ringOwner)];
+  void capture(cameraName.trim(), req.ringOwner, recipients).catch((error) => {
     logger.error(`Background capture failed for ${cameraName}:`, error);
   });
   return res.status(202).send('Capture started. Recording and Slack delivery are continuing in the background.');
@@ -108,7 +120,7 @@ app.post('/capture', (req, res) => {
 // GET endpoint to expose camera names
 app.get('/cameras', async (req, res) => {
   try {
-    const ringApi = ringAccounts.get(req.accountEmail);
+    const ringApi = ringAccounts.get(req.ringOwner);
     if (!ringApi) {
       return res.status(503).json({ error: 'Ring is not authenticated. Sign in to Ring first.' });
     }
@@ -126,7 +138,7 @@ app.get('/cameras', async (req, res) => {
   }
 });
 
-app.use('/cameras/live', createLiveViewRouter(req => ringAccounts.get(req.accountEmail), logger));
+app.use('/cameras/live', createLiveViewRouter(req => ringAccounts.get(req.ringOwner), logger));
 
 app.get('/events', async (req, res) => {
   let start;
@@ -164,7 +176,7 @@ app.get('/events', async (req, res) => {
   }
 
   try {
-    const events = await getVideoEventsForDay(start, end, ringAccounts.getRingAccountId(req.accountEmail));
+    const events = await getVideoEventsForDay(start, end, ringAccounts.getRingAccountId(req.ringOwner));
     res.json(events);
   } catch (error) {
     logger.error('Error fetching video events:', error);
@@ -182,7 +194,7 @@ app.get('/events/:id/video', async (req, res) => {
   });
 
   try {
-    const megaLink = await getVideoEventMegaLink(req.params.id, ringAccounts.getRingAccountId(req.accountEmail));
+    const megaLink = await getVideoEventMegaLink(req.params.id, ringAccounts.getRingAccountId(req.ringOwner));
     if (clientDisconnected || res.destroyed) return;
     if (!megaLink) {
       return res.status(404).send('Video event not found.');
@@ -238,7 +250,7 @@ app.get('/events/:id/thumbnail', async (req, res) => {
   });
 
   try {
-    const thumbnailLink = await getVideoEventThumbnailLink(req.params.id, ringAccounts.getRingAccountId(req.accountEmail));
+    const thumbnailLink = await getVideoEventThumbnailLink(req.params.id, ringAccounts.getRingAccountId(req.ringOwner));
     if (clientDisconnected || res.destroyed) return;
     if (!thumbnailLink) {
       return res.status(404).end();

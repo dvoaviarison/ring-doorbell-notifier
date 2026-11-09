@@ -31,7 +31,7 @@ export function setupAuth(app, logger, onRingLogin, isRingConnected = () => fals
 
   app.get('/auth/ring/status', (req, res) => {
     res.json({
-      authenticated: isRingConnected(req.accountEmail)
+      authenticated: isRingConnected(req.ringOwner ?? req.accountEmail)
     });
   });
 
@@ -132,6 +132,9 @@ async function completeRingLogin(req, res, client, onRingLogin) {
   try {
     await onRingLogin(client.refreshToken, req.accountEmail);
   } catch (error) {
+    if (error.status === 409 || error.status === 403) {
+      return res.status(error.status).json({ error: error.message });
+    }
     logger.error('Ring token could not be saved or the service could not be initialized:', error);
     return res.status(500).json({ error: 'Could not save your Ring login or start the notifier. Check server logs.' });
   }

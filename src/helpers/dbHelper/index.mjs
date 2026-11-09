@@ -22,6 +22,19 @@ const configCollectionName = env.MONGO_DB_COLLECTION_NAME || 'configuration';
 const eventsCollectionName = env.MONGO_DB_EVENTS_COLLECTION_NAME || 'events';
 const pushSubscriptionsCollectionName = env.MONGO_DB_PUSH_SUBSCRIPTIONS_COLLECTION_NAME || 'pushSubscriptions';
 const accountConfigKey = (email, name) => `account:${email}:${name}`;
+
+export async function getRingOwnershipCollection() {
+    await client.connect();
+    return client.db(dbName).collection('ringOwnership');
+}
+
+export async function deleteAccountRefreshToken(email) {
+    const accountEmail = normalizeEmail(email);
+    await client.connect();
+    await client.db(dbName).collection(configCollectionName).deleteOne({
+        key: accountConfigKey(accountEmail, 'refreshToken'), accountEmail
+    });
+}
 const legacyEventCategories = new Map([
     ['car passing by', 'vehicle'],
     ['person(s)', 'person'],
