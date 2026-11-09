@@ -117,5 +117,22 @@ export function createLiveViewRouter(getRingApi, logger) {
     return res.sendStatus(204);
   });
 
+  router.post('/speaker', async (req, res) => {
+    const { sessionId } = req.body ?? {};
+    if (typeof sessionId !== 'string' || !/^[a-f\d-]{36}$/i.test(sessionId)) {
+      return res.status(400).json({ error: 'A valid live session ID is required.' });
+    }
+    const entry = sessions.get(sessionId);
+    if (!entry || entry.accountEmail !== req.accountEmail) return res.sendStatus(404);
+    try {
+      await entry.session.activateCameraSpeaker();
+      if (sessions.get(sessionId) !== entry) return res.status(410).json({ error: 'Live session has ended.' });
+      return res.sendStatus(204);
+    } catch (error) {
+      logger.error('Could not activate Ring camera speaker:', error);
+      return res.status(502).json({ error: 'Could not activate camera speaker.' });
+    }
+  });
+
   return router;
 }

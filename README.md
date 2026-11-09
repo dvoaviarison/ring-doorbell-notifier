@@ -2,7 +2,7 @@
 Simple, Gemini AI-powered ([Gemini](https://ai.google.dev/gemini-api/docs/models/gemini)) nodejs app that will let you skip the expensive subscription and
 - Record motion videos directly on your **Mega drive**. Mega because it is the easiest and offers the best amount of free storage
 - Serve recorded events, video streams, and JPEG previews to the A-Eye frontend.
-- Serve Ring camera snapshots and battery levels and signal WebRTC live views for the A-Eye Live tab; sessions expire automatically after five minutes and are stopped when the viewer leaves. Battery camera snapshots are cached by the Ring client for up to ten minutes to reduce battery drain.
+- Serve Ring camera snapshots and battery levels and signal WebRTC live views and camera-speaker activation for the A-Eye Live tab; sessions expire automatically after five minutes and are stopped when the viewer leaves. Battery camera snapshots are cached by the Ring client for up to ten minutes to reduce battery drain.
 - Send notification to **Slack** with the recorded video attached when motion is detected.
 - Use AI to describe what your camera is seeing
 - With this you can enjoy pretty much the same premium features of ring doorbells for totally FREE.

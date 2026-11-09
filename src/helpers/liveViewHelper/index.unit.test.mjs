@@ -15,7 +15,11 @@ let logger;
 let camera;
 
 beforeEach(async () => {
-  session = { start: jest.fn().mockResolvedValue('v=0\r\nanswer'), end: jest.fn().mockResolvedValue(undefined) };
+  session = {
+    start: jest.fn().mockResolvedValue('v=0\r\nanswer'),
+    end: jest.fn().mockResolvedValue(undefined),
+    activateCameraSpeaker: jest.fn().mockResolvedValue(undefined),
+  };
   camera = { name: 'Front', batteryLevel: 73, createSimpleWebRtcSession: () => session, getSnapshot: jest.fn().mockResolvedValue(Buffer.from('jpeg')) };
   ring = { getLocations: jest.fn().mockResolvedValue([{ cameras: [camera] }]) };
   logger = { error: jest.fn() };
@@ -91,9 +95,40 @@ test('another account cannot stop a live session', async () => {
     headers: { 'Content-Type': 'application/json', 'x-test-user': 'second@example.com' },
     body: JSON.stringify({ sessionId })
   });
+
   expect(response.status).toBe(404);
   expect(session.end).not.toHaveBeenCalled();
   expect((await post('stop', { sessionId })).status).toBe(204);
+});
+
+test('activates the speaker only for the owner of an existing session', async () => {
+  expect((await post('speaker', {})).status).toBe(400);
+  expect((await post('speaker', { sessionId })).status).toBe(404);
+  expect((await post('start', { cameraName: 'Front', sdp: 'v=0', sessionId })).status).toBe(200);
+  const other = await fetch(`${origin}/cameras/live/speaker`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-test-user': 'second@example.com' },
+    body: JSON.stringify({ sessionId }),
+  });
+  expect(other.status).toBe(404);
+  expect(session.activateCameraSpeaker).not.toHaveBeenCalled();
+  expect((await post('speaker', { sessionId })).status).toBe(204);
+  expect(session.activateCameraSpeaker).toHaveBeenCalledTimes(1);
+  session.activateCameraSpeaker.mockRejectedValue(new Error('Ring unavailable'));
+  expect((await post('speaker', { sessionId })).status).toBe(502);
+  expect(logger.error).toHaveBeenCalled();
+  await post('stop', { sessionId });
+});
+
+test('reports when a session ends while activating its speaker', async () => {
+  let resolveActivation;
+  session.activateCameraSpeaker.mockImplementation(() => new Promise(resolve => { resolveActivation = resolve; }));
+  expect((await post('start', { cameraName: 'Front', sdp: 'v=0', sessionId })).status).toBe(200);
+  const activating = post('speaker', { sessionId });
+  while (!resolveActivation) await new Promise(resolve => setTimeout(resolve, 5));
+  expect((await post('stop', { sessionId })).status).toBe(204);
+  resolveActivation();
+  expect((await activating).status).toBe(410);
 });
 test('validates input and reports missing cameras and Ring failures', async () => {
   expect((await post('start', {})).status).toBe(400);
