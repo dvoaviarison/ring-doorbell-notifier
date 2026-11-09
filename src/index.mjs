@@ -14,6 +14,8 @@ import {
   getVideoEventThumbnailLink,
   getVideoEventsForDay,
   storePushSubscription,
+  getPushCategories,
+  setPushCategories,
   getSlackSettings,
   updateSlackSettings,
   getSlackSigningCandidates,
@@ -22,6 +24,7 @@ import {
   deleteAccountRefreshToken,
   getRingOwnershipCollection
 } from './helpers/dbHelper/index.mjs';
+import { eventCategories, eventCategoryList } from './helpers/eventCategories/index.mjs';
 import { getPushConfiguration } from './helpers/pushNotificationHelper/index.mjs';
 import { openMegaFileStream } from './helpers/videoStreamHelper/index.mjs';
 import { createLiveViewRouter } from './helpers/liveViewHelper/index.mjs';
@@ -323,6 +326,29 @@ app.delete('/push/subscriptions', async (req, res) => {
   } catch (error) {
     logger.error('Error deleting browser push subscription:', error);
     res.status(500).json({ error: 'Could not disable push notifications.' });
+  }
+});
+
+app.get('/push/categories', async (req, res) => {
+  try {
+    res.json({ categories: await getPushCategories(req.accountEmail), available: eventCategoryList });
+  } catch (error) {
+    logger.error('Error loading push notification categories:', error);
+    res.status(500).json({ error: 'Could not load push notification categories.' });
+  }
+});
+
+app.put('/push/categories', async (req, res) => {
+  const categories = req.body?.categories;
+  if (!Array.isArray(categories) || categories.some(category => !eventCategories.has(category))) {
+    return res.status(400).json({ error: 'A list of valid event categories is required.' });
+  }
+
+  try {
+    res.json({ categories: await setPushCategories(req.accountEmail, categories), available: eventCategoryList });
+  } catch (error) {
+    logger.error('Error saving push notification categories:', error);
+    res.status(500).json({ error: 'Could not save push notification categories.' });
   }
 });
 

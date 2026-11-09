@@ -268,6 +268,7 @@ describe('handleRingNotification', () => {
         expect(notifyPushSubscribers).toHaveBeenCalledWith({
             description: 'A person is at the front door.',
             megaLink: 'https://mega.example/video',
+            category: 'person',
             timestamp: expect.any(Date)
         }, accountEmail);
     });

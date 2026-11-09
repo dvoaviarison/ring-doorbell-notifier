@@ -53,6 +53,8 @@ import {
     storePushSubscription,
     getPushSubscriptions,
     deletePushSubscription,
+    getPushCategories,
+    setPushCategories,
     getSlackSettings,
     updateSlackSettings,
     getSlackSigningCandidates,
@@ -361,6 +363,31 @@ describe('Ring refresh token persistence', () => {
 
         expect(client.deleteOne).toHaveBeenCalledWith({ endpoint, accountEmail: 'person@example.com' });
         expect(client.close).not.toHaveBeenCalled();
+    });
+
+    it('defaults push notification categories to all and honors saved selections', async () => {
+        client.findOne.mockResolvedValueOnce(null);
+        await expect(getPushCategories('person@example.com'))
+            .resolves.toEqual(['delivery', 'vehicle', 'person', 'animal', 'uncategorized']);
+
+        client.findOne.mockResolvedValueOnce({ value: ['person', 'delivery'] });
+        await expect(getPushCategories('person@example.com')).resolves.toEqual(['delivery', 'person']);
+    });
+
+    it('stores push notification categories and rejects invalid ones', async () => {
+        await expect(setPushCategories('Person@Example.com', ['person', 'delivery']))
+            .resolves.toEqual(['delivery', 'person']);
+        expect(client.updateOne).toHaveBeenCalledWith(
+            { key: 'account:person@example.com:pushCategories', accountEmail: 'person@example.com' },
+            { $set: {
+                key: 'account:person@example.com:pushCategories',
+                accountEmail: 'person@example.com',
+                type: 'pushCategories',
+                value: ['delivery', 'person']
+            } },
+            { upsert: true }
+        );
+        await expect(setPushCategories('person@example.com', ['other'])).rejects.toThrow(TypeError);
     });
 
     it('updates Slack settings without including omitted secret fields', async () => {

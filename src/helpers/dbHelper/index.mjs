@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { purgeLocalFiles } from '../fileHelper/index.mjs';
 import { logger } from "../logHelper/index.mjs";
+import { eventCategories, eventCategoryList } from '../eventCategories/index.mjs';
 import { removeSlackChannelPrefix } from '../messageHelper/index.mjs';
 import { trackPendingUpload } from '../pendingUploadHelper/index.mjs';
 import { uploadFileToMega } from '../uploadHelper/index.mjs';
@@ -164,6 +165,39 @@ export async function updateSlackSettings(email, patch = {}) {
         return getSlackSettings(accountEmail);
     } catch (error) {
         logger.error('Error connecting to MongoDB or updating account Slack settings.');
+        throw error;
+    }
+}
+
+export async function getPushCategories(email) {
+    const accountEmail = normalizeEmail(email);
+    try {
+        const settings = await getAccountConfig(accountEmail, 'pushCategories');
+        if (!Array.isArray(settings?.value)) return [...eventCategoryList];
+        return eventCategoryList.filter((category) => settings.value.includes(category));
+    } catch (error) {
+        logger.error('Error connecting to MongoDB or fetching push notification categories:', error);
+        throw error;
+    }
+}
+
+export async function setPushCategories(email, categories) {
+    const accountEmail = normalizeEmail(email);
+    if (!Array.isArray(categories) || categories.some((category) => !eventCategories.has(category))) {
+        throw new TypeError('Push notification categories must be a list of valid event categories.');
+    }
+    const value = eventCategoryList.filter((category) => categories.includes(category));
+    try {
+        await client.connect();
+        const key = accountConfigKey(accountEmail, 'pushCategories');
+        await client.db(dbName).collection(configCollectionName).updateOne(
+            { key, accountEmail },
+            { $set: { key, accountEmail, type: 'pushCategories', value } },
+            { upsert: true }
+        );
+        return value;
+    } catch (error) {
+        logger.error('Error connecting to MongoDB or updating push notification categories:', error);
         throw error;
     }
 }

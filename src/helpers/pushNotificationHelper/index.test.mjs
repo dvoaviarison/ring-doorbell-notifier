@@ -5,11 +5,12 @@ jest.mock('web-push', () => ({
 
 jest.mock('../dbHelper/index.mjs', () => ({
     getPushSubscriptions: jest.fn(),
+    getPushCategories: jest.fn(),
     deletePushSubscription: jest.fn()
 }));
 
 import * as webPush from 'web-push';
-import { deletePushSubscription, getPushSubscriptions } from '../dbHelper/index.mjs';
+import { deletePushSubscription, getPushCategories, getPushSubscriptions } from '../dbHelper/index.mjs';
 import { getPushConfiguration, notifyPushSubscribers } from './index.mjs';
 
 describe('browser push notifications', () => {
@@ -25,6 +26,7 @@ describe('browser push notifications', () => {
         process.env.WEB_PUSH_VAPID_PRIVATE_KEY = 'private-key';
         process.env.WEB_PUSH_VAPID_SUBJECT = 'mailto:admin@example.com';
         getPushSubscriptions.mockResolvedValue([]);
+        getPushCategories.mockResolvedValue(['delivery', 'vehicle', 'person', 'animal', 'uncategorized']);
         webPush.sendNotification.mockResolvedValue(undefined);
         jest.clearAllMocks();
     });
@@ -85,6 +87,30 @@ describe('browser push notifications', () => {
         await notifyPushSubscribers({ description: 'Motion detected', timestamp: new Date() }, accountEmail);
 
         expect(deletePushSubscription).toHaveBeenCalledWith(subscription.endpoint, accountEmail);
+    });
+
+    it('skips categories the account did not select', async () => {
+        getPushCategories.mockResolvedValue(['person']);
+        getPushSubscriptions.mockResolvedValue([
+            { endpoint: 'https://fcm.googleapis.com/fcm/send/test', subscription: {} }
+        ]);
+
+        await notifyPushSubscribers({ description: 'A van drove by.', category: 'vehicle', timestamp: new Date() }, accountEmail);
+        expect(webPush.sendNotification).not.toHaveBeenCalled();
+
+        await notifyPushSubscribers({ description: 'A person walks.', category: 'person', timestamp: new Date() }, accountEmail);
+        expect(webPush.sendNotification).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats a missing category as uncategorized', async () => {
+        getPushCategories.mockResolvedValue(['person']);
+        getPushSubscriptions.mockResolvedValue([
+            { endpoint: 'https://fcm.googleapis.com/fcm/send/test', subscription: {} }
+        ]);
+
+        await notifyPushSubscribers({ description: 'Motion detected', category: null, timestamp: new Date() }, accountEmail);
+
+        expect(webPush.sendNotification).not.toHaveBeenCalled();
     });
 
     it('does not access MongoDB when push configuration is missing', async () => {

@@ -589,6 +589,57 @@
         }
       }
     },
+    "/push/categories": {
+      "get": {
+        "tags": ["Push notifications"],
+        "summary": "Get the event categories that trigger push notifications",
+        "description": "All categories are selected by default.",
+        "responses": {
+          "200": {
+            "description": "Selected and available categories",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PushCategories" }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "put": {
+        "tags": ["Push notifications"],
+        "summary": "Choose the event categories that trigger push notifications",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["categories"],
+                "properties": {
+                  "categories": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["delivery", "vehicle", "person", "animal", "uncategorized"] }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved categories",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PushCategories" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
     "/push/subscriptions": {
       "post": {
         "tags": ["Push notifications"],
@@ -839,6 +890,20 @@
           "thumbnailLink": {
             "type": "string",
             "format": "uri"
+          }
+        }
+      },
+      "PushCategories": {
+        "type": "object",
+        "required": ["categories", "available"],
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["delivery", "vehicle", "person", "animal", "uncategorized"] }
+          },
+          "available": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["delivery", "vehicle", "person", "animal", "uncategorized"] }
           }
         }
       },

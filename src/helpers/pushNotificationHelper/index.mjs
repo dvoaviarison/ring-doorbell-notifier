@@ -1,6 +1,7 @@
 import "dotenv/config";
 import * as webPush from 'web-push';
-import { deletePushSubscription, getPushSubscriptions } from '../dbHelper/index.mjs';
+import { deletePushSubscription, getPushCategories, getPushSubscriptions } from '../dbHelper/index.mjs';
+import { eventCategories } from '../eventCategories/index.mjs';
 import { logger } from '../logHelper/index.mjs';
 
 const { env } = process;
@@ -31,6 +32,10 @@ export async function notifyPushSubscribers(event, email) {
             env.WEB_PUSH_VAPID_PUBLIC_KEY,
             env.WEB_PUSH_VAPID_PRIVATE_KEY
         );
+        const category = eventCategories.has(event.category) ? event.category : 'uncategorized';
+        if (!(await getPushCategories(accountEmail)).includes(category)) {
+            return;
+        }
         const subscriptions = await getPushSubscriptions(accountEmail);
         const payload = JSON.stringify({
             title: 'New Ring video',

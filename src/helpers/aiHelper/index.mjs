@@ -4,9 +4,9 @@ import { logger } from "../logHelper/index.mjs";
 import { GoogleAIFileManager } from "@google/generative-ai/server";
 import GeminiKeyManager from './geminiKeyManager/index.mjs';
 import { prompts } from './prompts.mjs';
+import { eventCategories } from '../eventCategories/index.mjs';
 
 const { env } = process;
-const eventCategories = new Set(['delivery', 'vehicle', 'person', 'animal', 'uncategorized']);
 
 let activeGeminiKeyManager = new GeminiKeyManager(env.APP_AI_GEMINI_API_KEYS);
 

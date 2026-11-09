@@ -85,7 +85,7 @@ export async function handleRingNotification(camera, notif, emails, ringAccountI
                 eventSaved = true;
                 logger.info('Mega upload event saved to MongoDB');
                 await Promise.all(accountEmails.map(email =>
-                    notifyPushSubscribers({ description, megaLink, timestamp }, email)));
+                    notifyPushSubscribers({ description, megaLink, timestamp, category }, email)));
             } catch (error) {
                 logger.error('Failed to save or notify the account Mega upload event:', error);
             }
