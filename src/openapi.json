@@ -655,6 +655,32 @@
         }
       }
     },
+    "/settings/slack/secrets": {
+      "get": {
+        "tags": ["Settings"],
+        "summary": "Get the signed-in user's saved Slack secrets",
+        "description": "Returns only the current Google account's secrets. Responses are not cached.",
+        "responses": {
+          "200": {
+            "description": "Saved Slack secrets, or empty strings when unset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["botToken", "signingSecret"],
+                  "properties": {
+                    "botToken": { "type": "string", "format": "password" },
+                    "signingSecret": { "type": "string", "format": "password" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
     "/login": {
       "get": {
         "tags": ["Ring"],

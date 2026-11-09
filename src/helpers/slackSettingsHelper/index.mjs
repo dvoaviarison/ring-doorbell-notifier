@@ -18,6 +18,20 @@ export function createSlackSettingsRouter({ getSlackSettings, updateSlackSetting
     }
   });
 
+  router.get('/slack/secrets', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      const settings = await getSlackSettings(req.accountEmail);
+      res.json({
+        botToken: settings?.botToken ?? '',
+        signingSecret: settings?.signingSecret ?? ''
+      });
+    } catch (error) {
+      logger.error('Could not load Slack secrets:', error);
+      res.status(500).json({ error: 'Could not load Slack secrets.' });
+    }
+  });
+
   router.put('/slack', async (req, res) => {
     const { channelId, botToken, signingSecret } = req.body ?? {};
     if (typeof channelId !== 'string' || channelId.length > 255 ||
