@@ -17,7 +17,7 @@ describe('Google authentication', () => {
   let verifyIdToken;
 
   beforeEach(async () => {
-    identity = { sub: 'subject', email: 'User@example.com', email_verified: true };
+    identity = { sub: 'subject', email: 'User@example.com', email_verified: true, picture: 'https://example.com/avatar.png' };
     verifyIdToken = jest.fn(async () => ({ getPayload: () => identity }));
     clientFactory = jest.fn((_id, _secret, redirect) => ({
       generateAuthUrl: ({ state }) => `https://accounts.google.com/?state=${state}&redirect_uri=${encodeURIComponent(redirect)}`,
@@ -101,7 +101,7 @@ describe('Google authentication', () => {
     expect(allowed.status).toBe(200);
     expect(await allowed.json()).toEqual({ ok: true, email: 'user@example.com' });
     const status = await fetch(`${url}/auth/session`, { headers: { 'x-test-host': host, cookie: session } });
-    expect(await status.json()).toEqual({ authenticated: true, email: 'user@example.com' });
+    expect(await status.json()).toEqual({ authenticated: true, email: 'user@example.com', picture: 'https://example.com/avatar.png' });
     expect((await fetch(`${url}/auth/logout`, { method: 'POST', headers: { 'x-test-host': host, origin: 'https://attacker.example', cookie: session } })).status).toBe(403);
     expect((await fetch(`${url}/auth/logout`, { method: 'POST', headers: { 'x-test-host': host, origin, cookie: session } })).status).toBe(204);
   });
@@ -126,6 +126,19 @@ describe('Google authentication', () => {
     const response = await fetch(`${url}/events`, { headers: { 'x-test-host': 'localhost:5173', cookie: session } });
     expect(await response.json()).toEqual({ ok: true, email: 'other@example.com' });
     expect(() => createGoogleAuth({ ...env, GOOGLE_ALLOWED_EMAILS: 'someone-else@example.com' }, console)).not.toThrow();
+  });
+
+  test('does not expose a non-HTTPS Google profile picture', async () => {
+    identity.picture = 'http://example.com/avatar.png';
+    const { state, cookie } = await startLogin('localhost:5173');
+    const callback = await fetch(`${url}/auth/google/callback?state=${state}&code=abc`, {
+      headers: { 'x-test-host': 'localhost:5173', cookie }, redirect: 'manual'
+    });
+    const session = callback.headers.get('set-cookie').match(/a_eye_session=([^;,]+)/)[0];
+    const status = await fetch(`${url}/auth/session`, {
+      headers: { 'x-test-host': 'localhost:5173', cookie: session }
+    });
+    expect(await status.json()).toEqual({ authenticated: true, email: 'user@example.com' });
   });
 
   test.each([

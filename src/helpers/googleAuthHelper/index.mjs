@@ -56,6 +56,16 @@ function getCookie(req, name) {
   }
 }
 
+function getProfilePicture(value) {
+  if (typeof value !== 'string') return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function createGoogleAuth(env, logger, clientFactory = (id, secret, redirect) => new OAuth2Client(id, secret, redirect)) {
   const { GOOGLE_CLIENT_ID: clientId, GOOGLE_CLIENT_SECRET: clientSecret, A_EYE_SESSION_SECRET: secret } = env;
   const origins = (env.GOOGLE_ALLOWED_ORIGINS ?? '').split(',').map(value => value.trim()).filter(Boolean).map(value => {
@@ -92,7 +102,11 @@ export function createGoogleAuth(env, logger, clientFactory = (id, secret, redir
   function setup(app) {
     app.get('/auth/session', (req, res) => {
       const user = getUser(req);
-      res.set('Cache-Control', 'no-store').json(user ? { authenticated: true, email: user.email } : { authenticated: false });
+      res.set('Cache-Control', 'no-store').json(user ? {
+        authenticated: true,
+        email: user.email,
+        ...(typeof user.picture === 'string' ? { picture: user.picture } : {})
+      } : { authenticated: false });
     });
 
     app.get('/auth/google', (req, res) => {
@@ -128,7 +142,13 @@ export function createGoogleAuth(env, logger, clientFactory = (id, secret, redir
         if (typeof identity?.sub !== 'string' || !identity.sub.trim() || !email || identity.email_verified !== true) {
           return res.redirect('/?authError=notAllowed');
         }
-        res.cookie(sessionCookie, signPayload({ sub: identity.sub, email, exp: Math.floor(Date.now() / 1000) + sessionAge }, secret), cookieOptions(origin, sessionAge));
+        const picture = getProfilePicture(identity.picture);
+        res.cookie(sessionCookie, signPayload({
+          sub: identity.sub,
+          email,
+          ...(picture ? { picture } : {}),
+          exp: Math.floor(Date.now() / 1000) + sessionAge
+        }, secret), cookieOptions(origin, sessionAge));
         return res.redirect('/');
       } catch (error) {
         logger.error('Google sign-in failed:', error);
