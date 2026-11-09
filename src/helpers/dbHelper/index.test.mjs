@@ -5,7 +5,9 @@ jest.mock('mongodb', () => ({
         collection: jest.fn(),
         findOne: jest.fn(),
         updateOne: jest.fn(),
+        createIndex: jest.fn(),
         insertOne: jest.fn(),
+        updateMany: jest.fn(),
         find: jest.fn(),
         deleteOne: jest.fn(),
         close: jest.fn()
@@ -50,7 +52,11 @@ import {
     storeVideoEvent,
     storePushSubscription,
     getPushSubscriptions,
-    deletePushSubscription
+    deletePushSubscription,
+    getSlackSettings,
+    updateSlackSettings,
+    getSlackSigningCandidates,
+    listRingAccounts
 } from './index.mjs';
 
 const client = MongoClient.mock.results[0].value;
@@ -73,7 +79,9 @@ describe('Ring refresh token persistence', () => {
             modifiedCount: 0,
             upsertedCount: 1
         });
+        client.createIndex.mockResolvedValue('endpoint_unique_index');
         client.insertOne.mockResolvedValue({ insertedId: 'event-id' });
+        client.updateMany.mockResolvedValue({ modifiedCount: 0 });
         client.find.mockReturnValue(eventCursor);
         eventCursor.sort.mockReturnValue(eventCursor);
         eventCursor.toArray.mockResolvedValue([]);
@@ -90,16 +98,19 @@ describe('Ring refresh token persistence', () => {
     });
 
     it('loads the refresh token from MongoDB', async () => {
-        await expect(getRefreshToken()).resolves.toBe('stored-token');
-        expect(client.findOne).toHaveBeenCalledWith({ key: 'refreshToken' });
+        await expect(getRefreshToken(' Person@Example.com ')).resolves.toBe('stored-token');
+        expect(client.findOne).toHaveBeenCalledWith({
+            key: 'account:person@example.com:refreshToken',
+            accountEmail: 'person@example.com'
+        });
         expect(client.close).not.toHaveBeenCalled();
     });
 
     it('requires Ring sign-in when MongoDB has no refresh token', async () => {
         client.findOne.mockResolvedValue(null);
 
-        await expect(getRefreshToken())
-            .rejects.toThrow('No Ring refresh token found in MongoDB. Sign in through A-Eye or the Ring authentication API.');
+        await expect(getRefreshToken('person@example.com'))
+            .rejects.toThrow('No Ring refresh token found for this account. Sign in through A-Eye or the Ring authentication API.');
         expect(client.close).not.toHaveBeenCalled();
     });
 
@@ -107,15 +118,15 @@ describe('Ring refresh token persistence', () => {
         const error = new Error('MongoDB unavailable');
         client.connect.mockRejectedValue(error);
 
-        await expect(getRefreshToken()).rejects.toBe(error);
+        await expect(getRefreshToken('person@example.com')).rejects.toBe(error);
     });
 
     it('stores the refresh token in MongoDB', async () => {
-        await storeRefreshToken('new-token');
+        await storeRefreshToken('new-token', 'Person@Example.com');
 
         expect(client.updateOne).toHaveBeenCalledWith(
-            { key: 'refreshToken' },
-            { $set: { value: 'new-token' } },
+            { key: 'account:person@example.com:refreshToken', accountEmail: 'person@example.com' },
+            { $set: { value: 'new-token', accountEmail: 'person@example.com', type: 'refreshToken' } },
             { upsert: true }
         );
         expect(client.close).not.toHaveBeenCalled();
@@ -130,7 +141,8 @@ describe('Ring refresh token persistence', () => {
             timestamp,
             'Front door-2026-11-06_120000.mp4',
             'Front door',
-            'delivery'
+            'delivery',
+            '123'
         );
 
         expect(client.insertOne).toHaveBeenCalledWith({
@@ -139,7 +151,8 @@ describe('Ring refresh token persistence', () => {
             category: 'delivery',
             megaLink: 'https://mega.example/video',
             cameraName: 'Front door',
-            thumbnailLink: 'https://mega.example/thumbnail'
+            thumbnailLink: 'https://mega.example/thumbnail',
+            ringAccountId: '123'
         });
         expect(createVideoThumbnail).toHaveBeenCalledWith('Front door-2026-11-06_120000.mp4');
         expect(uploadFileToMega).toHaveBeenCalledWith('Front door-2026-11-06_120000.jpg');
@@ -162,14 +175,18 @@ describe('Ring refresh token persistence', () => {
             'Motion detected',
             'https://mega.example/video',
             new Date('2026-11-06T12:00:00.000Z'),
-            'Front door-2026-11-06_120000.mp4'
+            'Front door-2026-11-06_120000.mp4',
+            undefined,
+            null,
+            '123'
         );
 
         expect(client.insertOne).toHaveBeenCalledWith({
             timestamp: new Date('2026-11-06T12:00:00.000Z'),
             description: 'Motion detected',
             category: null,
-            megaLink: 'https://mega.example/video'
+            megaLink: 'https://mega.example/video',
+            ringAccountId: '123'
         });
         expect(uploadFileToMega).not.toHaveBeenCalled();
     });
@@ -181,14 +198,18 @@ describe('Ring refresh token persistence', () => {
             'Motion detected',
             'https://mega.example/video',
             new Date('2026-11-06T12:00:00.000Z'),
-            'Front door-2026-11-06_120000.mp4'
+            'Front door-2026-11-06_120000.mp4',
+            undefined,
+            null,
+            '123'
         );
 
         expect(client.insertOne).toHaveBeenCalledWith({
             timestamp: new Date('2026-11-06T12:00:00.000Z'),
             description: 'Motion detected',
             category: null,
-            megaLink: 'https://mega.example/video'
+            megaLink: 'https://mega.example/video',
+            ringAccountId: '123'
         });
     });
 
@@ -204,7 +225,7 @@ describe('Ring refresh token persistence', () => {
         const end = new Date('2026-11-07T00:00:00.000Z');
         eventCursor.toArray.mockResolvedValue(events);
 
-        await expect(getVideoEventsForDay(start, end)).resolves.toEqual([
+        await expect(getVideoEventsForDay(start, end, '123')).resolves.toEqual([
             {
                 id: 'event-id',
                 description: 'Motion detected',
@@ -215,13 +236,34 @@ describe('Ring refresh token persistence', () => {
         ]);
 
         expect(client.find).toHaveBeenCalledWith(
-            { timestamp: { $gte: start, $lt: end } },
+            { ringAccountId: '123', timestamp: { $gte: start, $lt: end } },
             { projection: { _id: 1, timestamp: 1, description: 1, category: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1 } }
         );
         expect(eventCursor.sort).toHaveBeenCalledWith({ timestamp: -1 });
         expect(client.close).not.toHaveBeenCalled();
     });
 
+    it('isolates reads by verified Ring account and rejects missing identities', async () => {
+        const start = new Date('2026-11-06T00:00:00.000Z');
+        const end = new Date('2026-11-07T00:00:00.000Z');
+        await getVideoEventsForDay(start, end, '456');
+        expect(client.find).toHaveBeenCalledWith(
+            { ringAccountId: '456', timestamp: { $gte: start, $lt: end } },
+            expect.any(Object)
+        );
+        await expect(getVideoEventsForDay(start, end, undefined)).rejects.toThrow('verified Ring account ID');
+        await expect(getVideoEventMegaLink('0123456789abcdef01234567', 'person@example.com')).rejects.toThrow('verified Ring account ID');
+    });
+
+    it('deduplicates a Ring notification within its Ring account', async () => {
+        await storeVideoEvent('Motion', 'https://mega.example/video', new Date(), undefined, 'Front', null, '123', 'ding-1');
+        expect(client.updateOne).toHaveBeenCalledWith(
+            { _id: expect.anything() },
+            { $setOnInsert: expect.objectContaining({ ringAccountId: '123', description: 'Motion' }) },
+            { upsert: true }
+        );
+        expect(client.insertOne).not.toHaveBeenCalled();
+    });
     it.each([
         ['car passing by', 'vehicle'],
         ['person(s)', 'person'],
@@ -231,18 +273,18 @@ describe('Ring refresh token persistence', () => {
             _id: { toString: () => 'event-id' },
             category: oldCategory
         }]);
-        await expect(getVideoEventsForDay(new Date('2026-11-06'), new Date('2026-11-07')))
+        await expect(getVideoEventsForDay(new Date('2026-11-06'), new Date('2026-11-07'), '123'))
             .resolves.toEqual([{ id: 'event-id', category }]);
     });
 
     it('loads a MEGA thumbnail link by event id', async () => {
         client.findOne.mockResolvedValue({ thumbnailLink: 'https://mega.nz/file/id#key' });
 
-        await expect(getVideoEventThumbnailLink('0123456789abcdef01234567'))
+        await expect(getVideoEventThumbnailLink('0123456789abcdef01234567', '123'))
             .resolves.toBe('https://mega.nz/file/id#key');
 
         expect(client.findOne).toHaveBeenCalledWith(
-            { _id: expect.objectContaining({ value: '0123456789abcdef01234567' }) },
+            { _id: expect.objectContaining({ value: '0123456789abcdef01234567' }), ringAccountId: '123' },
             { projection: { _id: 0, thumbnailLink: 1 } }
         );
         expect(client.close).not.toHaveBeenCalled();
@@ -251,12 +293,12 @@ describe('Ring refresh token persistence', () => {
     it('loads a MEGA link by event id for in-page video playback', async () => {
         client.findOne.mockResolvedValue({ megaLink: 'https://mega.nz/file/id#key' });
 
-        await expect(getVideoEventMegaLink('0123456789abcdef01234567'))
+        await expect(getVideoEventMegaLink('0123456789abcdef01234567', '123'))
             .resolves.toBe('https://mega.nz/file/id#key');
 
         expect(ObjectId).toHaveBeenCalledWith('0123456789abcdef01234567');
         expect(client.findOne).toHaveBeenCalledWith(
-            { _id: expect.objectContaining({ value: '0123456789abcdef01234567' }) },
+            { _id: expect.objectContaining({ value: '0123456789abcdef01234567' }), ringAccountId: '123' },
             { projection: { _id: 0, megaLink: 1 } }
         );
         expect(client.close).not.toHaveBeenCalled();
@@ -268,8 +310,8 @@ describe('Ring refresh token persistence', () => {
             .mockResolvedValueOnce({ megaLink: 'https://mega.nz/file/video#key' });
 
         await expect(Promise.all([
-            getVideoEventThumbnailLink('0123456789abcdef01234567'),
-            getVideoEventMegaLink('0123456789abcdef01234567')
+            getVideoEventThumbnailLink('0123456789abcdef01234567', '123'),
+            getVideoEventMegaLink('0123456789abcdef01234567', '123')
         ])).resolves.toEqual([
             'https://mega.nz/file/thumbnail#key',
             'https://mega.nz/file/video#key'
@@ -278,21 +320,22 @@ describe('Ring refresh token persistence', () => {
     });
 
     it('rejects invalid event ids without querying MongoDB', async () => {
-        await expect(getVideoEventMegaLink('not-an-id')).resolves.toBeNull();
+        await expect(getVideoEventMegaLink('not-an-id', '123')).resolves.toBeNull();
         expect(client.findOne).not.toHaveBeenCalled();
     });
 
-    it('upserts browser push subscriptions by endpoint', async () => {
+    it('atomically assigns a browser endpoint to the current account', async () => {
         const subscription = {
             endpoint: 'https://fcm.googleapis.com/fcm/send/test',
             keys: { p256dh: 'public-key', auth: 'auth-secret' }
         };
-        await storePushSubscription(subscription);
+        await storePushSubscription(subscription, 'Person@Example.com');
 
+        expect(client.createIndex).toHaveBeenCalledWith({ endpoint: 1 }, { unique: true });
         expect(client.updateOne).toHaveBeenCalledWith(
             { endpoint: subscription.endpoint },
             expect.objectContaining({
-                $set: expect.objectContaining({ endpoint: subscription.endpoint, subscription })
+                $set: expect.objectContaining({ endpoint: subscription.endpoint, accountEmail: 'person@example.com', subscription })
             }),
             { upsert: true }
         );
@@ -304,19 +347,72 @@ describe('Ring refresh token persistence', () => {
         const subscriptions = [{ endpoint: 'https://fcm.googleapis.com/fcm/send/test' }];
         eventCursor.toArray.mockResolvedValue(subscriptions);
 
-        await expect(getPushSubscriptions()).resolves.toBe(subscriptions);
+        await expect(getPushSubscriptions('person@example.com')).resolves.toBe(subscriptions);
         expect(client.find).toHaveBeenCalledWith(
-            {},
-            { projection: { _id: 0, endpoint: 1, subscription: 1 } }
+            { accountEmail: 'person@example.com' },
+            { projection: { _id: 0, endpoint: 1, accountEmail: 1, subscription: 1 } }
         );
         expect(client.close).not.toHaveBeenCalled();
     });
 
     it('deletes a browser push subscription by endpoint', async () => {
         const endpoint = 'https://fcm.googleapis.com/fcm/send/test';
-        await deletePushSubscription(endpoint);
+        await deletePushSubscription(endpoint, 'person@example.com');
 
-        expect(client.deleteOne).toHaveBeenCalledWith({ endpoint });
+        expect(client.deleteOne).toHaveBeenCalledWith({ endpoint, accountEmail: 'person@example.com' });
         expect(client.close).not.toHaveBeenCalled();
     });
+
+    it('updates Slack settings without including omitted secret fields', async () => {
+        await updateSlackSettings('Person@Example.com', { channelId: 'new-channel' });
+
+        expect(client.updateOne).toHaveBeenCalledWith(
+            { key: 'account:person@example.com:slackSettings', accountEmail: 'person@example.com' },
+            { $set: expect.objectContaining({
+                channelId: 'new-channel',
+                accountEmail: 'person@example.com',
+                type: 'slackSettings'
+            }) },
+            { upsert: true }
+        );
+        const update = client.updateOne.mock.calls[0][1].$set;
+        expect(update).not.toHaveProperty('botToken');
+        expect(update).not.toHaveProperty('signingSecret');
+    });
+
+    it('returns only account-scoped Slack settings and signing candidates', async () => {
+        client.findOne.mockResolvedValue({
+            botToken: 'account-token',
+            channelId: 'account-channel',
+            signingSecret: 'account-secret'
+        });
+        await expect(getSlackSettings('Person@Example.com')).resolves.toEqual({
+            botToken: 'account-token',
+            channelId: 'account-channel',
+            signingSecret: 'account-secret'
+        });
+
+        eventCursor.toArray.mockResolvedValue([{
+            accountEmail: 'Person@Example.com',
+            signingSecret: 'account-secret'
+        }]);
+        await expect(getSlackSigningCandidates()).resolves.toEqual([{
+            email: 'person@example.com',
+            signingSecret: 'account-secret'
+        }]);
+    });
+
+    it('lists only Ring tokens belonging to accounts', async () => {
+        eventCursor.toArray.mockResolvedValue([
+            { accountEmail: 'Person@Example.com', value: 'account-token' }
+        ]);
+        await expect(listRingAccounts()).resolves.toEqual([
+            { email: 'person@example.com', refreshToken: 'account-token' }
+        ]);
+        expect(client.find).toHaveBeenCalledWith(
+            { type: 'refreshToken', accountEmail: { $type: 'string' }, value: { $type: 'string', $ne: '' } },
+            { projection: { _id: 0, accountEmail: 1, value: 1 } }
+        );
+    });
+
 });

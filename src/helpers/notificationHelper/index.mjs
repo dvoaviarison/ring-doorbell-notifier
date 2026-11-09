@@ -4,24 +4,30 @@ import { logger } from "../logHelper/index.mjs";
 
 const { env } = process;
 
-export async function sendSlackNotificationWithVideo(message, videoFileName) {
-    const slackClient = new WebClient(env.SLACK_BOT_TOKEN);
+export async function sendSlackNotificationWithVideo(message, videoFileName, settings) {
+    const { botToken, channelId } = settings ?? {};
+    if (!botToken || !channelId) return null;
+    const slackClient = new WebClient(botToken);
     const filePath = `${env.APP_RECORDING_FOLDER}/${videoFileName}`;
     return slackClient.filesUploadV2({
-        channel_id: env.SLACK_CHANNEL_ID,
+        channel_id: channelId,
         initial_comment: message,
         file: filePath,
         filename: videoFileName,
     });
 }
 
-export async function sendSimpleSlackNotification(message, channel = env.SLACK_CHANNEL_ID) {
+export async function sendSimpleSlackNotification(message, settings) {
     try {
-        const slackClient = new WebClient(env.SLACK_BOT_TOKEN);
-        logger.info(`Sending SlackMessage to: ${channel}`);
-        const res = await slackClient.chat.postMessage({ channel: channel, text: message });
+        const config = settings;
+        if (!config?.botToken || !config?.channelId) return null;
+        const slackClient = new WebClient(config.botToken);
+        logger.info('Sending Slack notification.');
+        const res = await slackClient.chat.postMessage({ channel: config.channelId, text: message });
         logger.info(`SlackMessage sent: ${res.ts}`);
+        return res;
     } catch (error) {
-        logger.error('Error sending slack message: ', error);
+        logger.error('Error sending Slack notification.');
+        throw error;
     }
 }

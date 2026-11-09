@@ -9,6 +9,7 @@ import { setupApiDocs } from './index.mjs';
 describe('Swagger landing page', () => {
     let server;
     let baseUrl;
+    const connectedAccounts = new Set();
     const secret = 'test-secret-with-at-least-32-bytes';
     const googleCookie = `a_eye_session=${signPayload({
         sub: 'test-user',
@@ -30,10 +31,10 @@ describe('Swagger landing page', () => {
         app.use(createAccessMiddleware(googleAuth, () => false));
         setupSession(app);
         app.post('/test-ring-session', (req, res) => {
-            req.session.ringAuthenticated = true;
+            connectedAccounts.add(req.accountEmail);
             res.end();
         });
-        app.use((req, res, next) => authMiddleware(req, res, next, () => false));
+        app.use((req, res, next) => authMiddleware(req, res, next, email => connectedAccounts.has(email)));
         setupApiDocs(app, { openapi: '3.0.3', info: { title: 'Test API', version: '1' }, paths: {} });
         setupAuth(app, {}, jest.fn());
         app.get('/events', (_req, res) => res.json([]));
@@ -74,10 +75,9 @@ describe('Swagger landing page', () => {
             method: 'POST', headers: { cookie: googleCookie }
         });
         expect(response.status).toBe(200);
-        const ringCookie = response.headers.get('set-cookie').split(';')[0];
-        expect((await fetch(`${baseUrl}/events`, { headers: { cookie: ringCookie } })).status).toBe(401);
+        expect((await fetch(`${baseUrl}/events`)).status).toBe(401);
         const authorized = await fetch(`${baseUrl}/events`, {
-            headers: { cookie: `${googleCookie}; ${ringCookie}` }
+            headers: { cookie: googleCookie }
         });
         expect(authorized.status).toBe(200);
         expect(await authorized.json()).toEqual([]);

@@ -30,7 +30,16 @@ export function verifySignedPayload(token, secret, now = Date.now()) {
 export function createAccessMiddleware(auth, isSlackRequestValid) {
   return (req, res, next) => {
     if (req.path === '/health' && ['GET', 'POST'].includes(req.method)) return next();
-    if (req.headers['x-slack-signature'] && isSlackRequestValid(req)) return next();
+    if (req.path === '/capture' && req.method === 'POST' && req.headers['x-slack-signature']) {
+      return Promise.resolve(isSlackRequestValid(req)).then(email => {
+        if (typeof email === 'string' && email) {
+          req.accountEmail = email;
+          req.slackAuthenticated = true;
+          return next();
+        }
+        return auth.middleware(req, res, next);
+      }).catch(next);
+    }
     return auth.middleware(req, res, next);
   };
 }
@@ -49,7 +58,6 @@ function getCookie(req, name) {
 
 export function createGoogleAuth(env, logger, clientFactory = (id, secret, redirect) => new OAuth2Client(id, secret, redirect)) {
   const { GOOGLE_CLIENT_ID: clientId, GOOGLE_CLIENT_SECRET: clientSecret, A_EYE_SESSION_SECRET: secret } = env;
-  const emails = new Set((env.GOOGLE_ALLOWED_EMAILS ?? '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
   const origins = (env.GOOGLE_ALLOWED_ORIGINS ?? '').split(',').map(value => value.trim()).filter(Boolean).map(value => {
     const url = new URL(value);
     if (url.origin !== value || !['http:', 'https:'].includes(url.protocol) ||
@@ -58,9 +66,9 @@ export function createGoogleAuth(env, logger, clientFactory = (id, secret, redir
     }
     return url;
   });
-  if (!clientId || !clientSecret || emails.size === 0 || origins.length === 0 ||
+  if (!clientId || !clientSecret || origins.length === 0 ||
       !secret || Buffer.byteLength(secret) < 32) {
-    throw new Error('Configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_ALLOWED_EMAILS, GOOGLE_ALLOWED_ORIGINS, and A_EYE_SESSION_SECRET (at least 32 bytes).');
+    throw new Error('Configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_ALLOWED_ORIGINS, and A_EYE_SESSION_SECRET (at least 32 bytes).');
   }
   if (new Set(origins.map(origin => origin.host)).size !== origins.length) {
     throw new Error('GOOGLE_ALLOWED_ORIGINS must not contain duplicate hosts.');
@@ -76,8 +84,8 @@ export function createGoogleAuth(env, logger, clientFactory = (id, secret, redir
 
   function getUser(req) {
     const payload = verifySignedPayload(getCookie(req, sessionCookie), secret);
-    if (typeof payload?.sub !== 'string' || typeof payload.email !== 'string' ||
-        !emails.has(payload.email.toLowerCase())) return undefined;
+    if (typeof payload?.sub !== 'string' || !payload.sub.trim() ||
+        typeof payload.email !== 'string' || !payload.email.trim()) return undefined;
     return payload;
   }
 
@@ -116,8 +124,8 @@ export function createGoogleAuth(env, logger, clientFactory = (id, secret, redir
         if (!tokens.id_token) throw new Error('Google did not return an ID token.');
         const ticket = await client.verifyIdToken({ idToken: tokens.id_token, audience: clientId });
         const identity = ticket.getPayload();
-        const email = identity?.email?.trim().toLowerCase();
-        if (!identity?.sub || !email || identity.email_verified !== true || !emails.has(email)) {
+        const email = typeof identity?.email === 'string' ? identity.email.trim().toLowerCase() : '';
+        if (typeof identity?.sub !== 'string' || !identity.sub.trim() || !email || identity.email_verified !== true) {
           return res.redirect('/?authError=notAllowed');
         }
         res.cookie(sessionCookie, signPayload({ sub: identity.sub, email, exp: Math.floor(Date.now() / 1000) + sessionAge }, secret), cookieOptions(origin, sessionAge));
@@ -137,8 +145,12 @@ export function createGoogleAuth(env, logger, clientFactory = (id, secret, redir
   }
 
   function middleware(req, res, next) {
-    if (getUser(req)) return next();
-    res.set('X-A-Eye-Auth', 'required').status(401).json({ error: 'Sign in with an authorized Google account to continue.' });
+    const user = getUser(req);
+    if (user) {
+      req.accountEmail = user.email.toLowerCase();
+      return next();
+    }
+    res.set('X-A-Eye-Auth', 'required').status(401).json({ error: 'Sign in with a verified Google account to continue.' });
   }
 
   return { setup, middleware };

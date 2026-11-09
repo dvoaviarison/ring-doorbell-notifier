@@ -3,34 +3,21 @@ import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { handleRingNotification } from "./ringNotificationHandler/index.mjs";
 import { stopProcessInMs } from "./helpers/processHelper/index.mjs";
 import { logger } from "./helpers/logHelper/index.mjs";
-import { storeRefreshToken } from "./helpers/dbHelper/index.mjs";
 
 const { env } = process;
 let autoStopScheduled = false;
 
-export async function run(ringApi) {
+export async function run(ringApi, email, ringAccountId) {
+    if (typeof email !== 'string' || !email.trim()) {
+        throw new TypeError('A Google account email is required to run the Ring notifier.');
+    }
+    const accountEmail = email.trim().toLowerCase();
     const subscriptions = [];
 
     if (env.APP_AUTO_STOP_MS && !autoStopScheduled) {
         stopProcessInMs(env.APP_AUTO_STOP_MS);
         autoStopScheduled = true;
     }
-
-    // Keep token fresh
-    subscriptions.push(ringApi.onRefreshTokenUpdated.subscribe(
-        async ({ newRefreshToken, oldRefreshToken }) => {
-            if (newRefreshToken === oldRefreshToken) {
-                return;
-            }
-
-            try {
-                await storeRefreshToken(newRefreshToken);
-                logger.info('Ring refresh token updated in the database.');
-            } catch (error) {
-                logger.error('Could not persist the updated Ring refresh token:', error);
-            }
-        }
-    ));
 
     try {
         // Subscribe to all cameras' notifications
@@ -40,11 +27,13 @@ export async function run(ringApi) {
 
         allCameras?.forEach((camera) => {
             subscriptions.push(camera.onNewNotification.subscribe(async (notif) => {
-                // Handle Notification
-                await handleRingNotification(camera, notif);
-
-                // Purge
-                purgeLocalFiles();
+                try {
+                    await handleRingNotification(camera, notif, accountEmail, ringAccountId);
+                } catch {
+                    logger.error('Could not process Ring notification for this account.');
+                } finally {
+                    purgeLocalFiles();
+                }
             }));
         });
 

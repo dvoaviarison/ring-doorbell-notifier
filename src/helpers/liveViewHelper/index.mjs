@@ -24,7 +24,7 @@ export function createLiveViewRouter(getRingApi, logger) {
     if (typeof cameraName !== 'string' || !cameraName.trim()) {
       return res.status(400).json({ error: 'A camera name is required.' });
     }
-    const api = getRingApi();
+    const api = getRingApi(req);
     if (!api) return res.status(503).json({ error: 'Ring is not connected.' });
     try {
       const camera = findCamera(await api.getLocations(), cameraName);
@@ -46,7 +46,7 @@ export function createLiveViewRouter(getRingApi, logger) {
     if (typeof cameraName !== 'string' || !cameraName.trim()) {
       return res.status(400).json({ error: 'A camera name is required.' });
     }
-    const api = getRingApi();
+    const api = getRingApi(req);
     if (!api) return res.status(503).json({ error: 'Ring is not connected.' });
     try {
       const camera = findCamera(await api.getLocations(), cameraName);
@@ -68,7 +68,7 @@ export function createLiveViewRouter(getRingApi, logger) {
       return res.status(400).json({ error: 'A camera, WebRTC offer, and session ID are required.' });
     }
     if (sessions.has(sessionId)) return res.status(409).json({ error: 'Live session already exists.' });
-    const api = getRingApi();
+    const api = getRingApi(req);
     if (!api) return res.status(503).json({ error: 'Ring is not connected.' });
 
     let entry;
@@ -85,7 +85,7 @@ export function createLiveViewRouter(getRingApi, logger) {
       if (disconnected) return;
       if (sessions.has(sessionId)) return res.status(409).json({ error: 'Live session already exists.' });
       const session = camera.createSimpleWebRtcSession();
-      entry = { session, timer: setTimeout(() => void endSession(sessionId), sessionLifetimeMs) };
+      entry = { session, accountEmail: req.accountEmail, timer: setTimeout(() => void endSession(sessionId), sessionLifetimeMs) };
       entry.timer.unref();
       sessions.set(sessionId, entry);
       const answer = await session.start(sdp);
@@ -111,6 +111,8 @@ export function createLiveViewRouter(getRingApi, logger) {
     if (typeof sessionId !== 'string' || !/^[a-f\d-]{36}$/i.test(sessionId)) {
       return res.status(400).json({ error: 'A valid live session ID is required.' });
     }
+    const entry = sessions.get(sessionId);
+    if (entry && entry.accountEmail !== req.accountEmail) return res.sendStatus(404);
     await endSession(sessionId);
     return res.sendStatus(204);
   });

@@ -15,7 +15,11 @@ export function getPushConfiguration() {
     };
 }
 
-export async function notifyPushSubscribers(event) {
+export async function notifyPushSubscribers(event, email) {
+    if (typeof email !== 'string' || !email.trim()) {
+        throw new TypeError('A Google account email is required to send push notifications.');
+    }
+    const accountEmail = email.trim().toLowerCase();
     const { configured } = getPushConfiguration();
     if (!configured) {
         return;
@@ -27,7 +31,7 @@ export async function notifyPushSubscribers(event) {
             env.WEB_PUSH_VAPID_PUBLIC_KEY,
             env.WEB_PUSH_VAPID_PRIVATE_KEY
         );
-        const subscriptions = await getPushSubscriptions();
+        const subscriptions = await getPushSubscriptions(accountEmail);
         const payload = JSON.stringify({
             title: 'New Ring video',
             body: event.description,
@@ -41,7 +45,7 @@ export async function notifyPushSubscribers(event) {
             } catch (error) {
                 if (error.statusCode === 404 || error.statusCode === 410) {
                     try {
-                        await deletePushSubscription(endpoint);
+                        await deletePushSubscription(endpoint, accountEmail);
                     } catch (deleteError) {
                         logger.error('Failed to remove expired push subscription:', deleteError);
                     }

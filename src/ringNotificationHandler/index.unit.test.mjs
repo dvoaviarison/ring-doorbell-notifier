@@ -1,3 +1,10 @@
+import { createHash } from 'node:crypto';
+
+jest.mock('node:crypto', () => ({
+    ...jest.requireActual('node:crypto'),
+    randomUUID: () => 'test-uuid'
+}));
+
 jest.mock('../helpers/dateHelper/index.mjs', () => ({
     getFormattedDateTime: () => '2026-11-01_120000'
 }));
@@ -28,7 +35,8 @@ jest.mock('../helpers/pendingUploadHelper/index.mjs', () => ({
 }));
 
 jest.mock('../helpers/dbHelper/index.mjs', () => ({
-    storeVideoEvent: jest.fn()
+    storeVideoEvent: jest.fn(),
+    getSlackSettings: jest.fn()
 }));
 
 jest.mock('../helpers/pushNotificationHelper/index.mjs', () => ({
@@ -39,7 +47,7 @@ jest.mock('../helpers/fileHelper/index.mjs', () => ({
     purgeLocalFiles: jest.fn()
 }));
 
-import { handleRingNotification } from './index.mjs';
+import { handleRingNotification as handleAccountNotification } from './index.mjs';
 import { sendSlackNotificationWithVideo } from '../helpers/notificationHelper/index.mjs';
 import { recordVideoFromCamera } from '../helpers/videoHelper/index.mjs';
 import { uploadFileToMega } from '../helpers/uploadHelper/index.mjs';
@@ -47,16 +55,22 @@ import { formatMessage } from '../helpers/messageHelper/index.mjs';
 import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
 import { trackPendingUpload } from '../helpers/pendingUploadHelper/index.mjs';
 import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
-import { storeVideoEvent } from '../helpers/dbHelper/index.mjs';
+import { getSlackSettings, storeVideoEvent } from '../helpers/dbHelper/index.mjs';
 import { notifyPushSubscribers } from '../helpers/pushNotificationHelper/index.mjs';
 
 describe('handleRingNotification', () => {
+    const accountEmail = 'person@example.com';
+    const handleRingNotification = (camera, notification, email) => handleAccountNotification(camera, notification, email, '123');
+    const slackSettings = { botToken: 'test-token', channelId: 'test-channel' };
+    const videoFileName = `Front door-${createHash('sha256').update(accountEmail).digest('hex').slice(0, 12)}-2026-11-01_120000-test-uuid.mp4`;
     const previousAiEnabled = process.env.APP_ENABLE_AI;
 
     beforeEach(() => {
         process.env.APP_RECORDING_FOLDER = '/recordings';
         process.env.APP_ENABLE_AI = 'false';
         jest.clearAllMocks();
+        getSlackSettings.mockResolvedValue(slackSettings);
+        storeVideoEvent.mockResolvedValue(undefined);
     });
 
     afterAll(() => {
@@ -92,10 +106,12 @@ describe('handleRingNotification', () => {
             android_config: { body: 'Motion detected' }
         };
 
-        const notificationPromise = handleRingNotification(camera, notification);
-        const videoFileName = 'Front door-2026-11-01_120000.mp4';
+        const notificationPromise = handleRingNotification(camera, notification, accountEmail);
 
+        await new Promise(setImmediate);
         expect(recordVideoFromCamera).toHaveBeenCalledWith(camera, videoFileName, 10);
+        expect(trackPendingUpload).toHaveBeenCalledWith(`/recordings/${videoFileName}`);
+        expect(trackPendingUpload.mock.results[0].value).not.toHaveBeenCalled();
         expect(uploadFileToMega).not.toHaveBeenCalled();
         expect(sendSlackNotificationWithVideo).not.toHaveBeenCalled();
 
@@ -106,7 +122,8 @@ describe('handleRingNotification', () => {
         expect(uploadFileToMega).toHaveBeenCalledWith(videoFileName);
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
             '@channel: Motion detected',
-            videoFileName
+            videoFileName,
+            slackSettings
         );
         expect(trackPendingUpload).toHaveBeenCalledWith(`/recordings/${videoFileName}`);
         expect(trackPendingUpload.mock.results[0].value).not.toHaveBeenCalled();
@@ -124,8 +141,21 @@ describe('handleRingNotification', () => {
             expect.any(Date),
             videoFileName,
             'Front door',
-            null
+            null,
+            '123', undefined
         );
+    });
+
+    it('releases the recording protection if recording fails', async () => {
+        recordVideoFromCamera.mockRejectedValueOnce(new Error('camera offline'));
+        await expect(handleRingNotification(
+            { name: 'Front door' },
+            { android_config: { body: 'Motion detected' } },
+            accountEmail
+        )).rejects.toThrow('camera offline');
+        expect(trackPendingUpload).toHaveBeenCalledWith(`/recordings/${videoFileName}`);
+        expect(trackPendingUpload.mock.results[0].value).toHaveBeenCalledTimes(1);
+        expect(uploadFileToMega).not.toHaveBeenCalled();
     });
 
     it('uses the AI description as the Slack video message when AI is enabled', async () => {
@@ -146,12 +176,12 @@ describe('handleRingNotification', () => {
             android_config: { body: 'Motion detected' }
         };
 
-        const notificationPromise = handleRingNotification(camera, notification);
+        const notificationPromise = handleRingNotification(camera, notification, accountEmail);
         await new Promise(setImmediate);
 
-        expect(uploadFileToMega).toHaveBeenCalledWith('Front door-2026-11-01_120000.mp4');
+        expect(uploadFileToMega).toHaveBeenCalledWith(videoFileName);
         expect(getAIPoweredVideoDescription).toHaveBeenCalledWith(
-            'Front door-2026-11-01_120000.mp4',
+            videoFileName,
             'Front door'
         );
         expect(sendSlackNotificationWithVideo).not.toHaveBeenCalled();
@@ -161,22 +191,24 @@ describe('handleRingNotification', () => {
 
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
             '@channel: A person is at the front door.',
-            'Front door-2026-11-01_120000.mp4'
+            videoFileName,
+            slackSettings
         );
         await new Promise(setImmediate);
         expect(storeVideoEvent).toHaveBeenCalledWith(
             'A person is at the front door.',
             'https://mega.example/video',
             expect.any(Date),
-            'Front door-2026-11-01_120000.mp4',
+            videoFileName,
             'Front door',
-            'person'
+            'person',
+            '123', undefined
         );
         expect(notifyPushSubscribers).toHaveBeenCalledWith({
             description: 'A person is at the front door.',
             megaLink: 'https://mega.example/video',
             timestamp: expect.any(Date)
-        });
+        }, accountEmail);
     });
 
     it('saves a null category and uses the Ring text when AI fails', async () => {
@@ -188,11 +220,11 @@ describe('handleRingNotification', () => {
 
         await expect(handleRingNotification({ name: 'Front door' }, {
             android_config: { body: 'Motion detected' }
-        })).resolves.toBe('@channel: Motion detected');
+        }, accountEmail)).resolves.toBe('@channel: Motion detected');
         await new Promise(setImmediate);
         expect(storeVideoEvent).toHaveBeenCalledWith(
             'Motion detected', 'https://mega.example/video', expect.any(Date),
-            'Front door-2026-11-01_120000.mp4', 'Front door', null
+            videoFileName, 'Front door', null, '123', undefined
         );
     });
 
@@ -205,7 +237,7 @@ describe('handleRingNotification', () => {
 
         await handleRingNotification({ name: 'Front door' }, {
             android_config: { body: 'Front door: Motion detected' }
-        });
+        }, accountEmail);
 
         await new Promise(setImmediate);
 
@@ -213,14 +245,15 @@ describe('handleRingNotification', () => {
             'Motion detected',
             'https://mega.example/video',
             expect.any(Date),
-            'Front door-2026-11-01_120000.mp4',
+            videoFileName,
             'Front door',
-            aiEnabled === 'true' ? 'delivery' : null
+            aiEnabled === 'true' ? 'delivery' : null,
+            '123', undefined
         );
         expect(formatMessage).toHaveBeenCalledWith('Motion detected');
         expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({
             description: 'Motion detected'
-        }));
+        }), accountEmail);
     });
 
     it.each([
@@ -234,16 +267,16 @@ describe('handleRingNotification', () => {
         uploadFileToMega.mockResolvedValue('https://mega.example/video');
         sendSlackNotificationWithVideo.mockResolvedValue({});
 
-        await handleRingNotification({ name: 'Front door' }, { android_config: { body } });
+        await handleRingNotification({ name: 'Front door' }, { android_config: { body } }, accountEmail);
         await new Promise(setImmediate);
 
         expect(storeVideoEvent).toHaveBeenCalledWith(
             'Motion detected', 'https://mega.example/video', expect.any(Date),
-            'Front door-2026-11-01_120000.mp4', 'Front door', aiEnabled === 'true' ? 'uncategorized' : null
+            videoFileName, 'Front door', aiEnabled === 'true' ? 'uncategorized' : null, '123', undefined
         );
-        expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({ description: 'Motion detected' }));
+        expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({ description: 'Motion detected' }), accountEmail);
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
-            '@channel: Motion detected', 'Front door-2026-11-01_120000.mp4'
+            '@channel: Motion detected', videoFileName, slackSettings
         );
     });
 
@@ -260,11 +293,12 @@ describe('handleRingNotification', () => {
             android_config: { body: 'Motion detected' }
         };
 
-        await expect(handleRingNotification(camera, notification))
+        await expect(handleRingNotification(camera, notification, accountEmail))
             .resolves.toBe('@channel: Motion detected');
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
             '@channel: Motion detected',
-            'Front door-2026-11-01_120000.mp4'
+            videoFileName,
+            slackSettings
         );
         await new Promise(setImmediate);
         expect(storeVideoEvent).not.toHaveBeenCalled();
@@ -283,20 +317,22 @@ describe('handleRingNotification', () => {
 
         await expect(handleRingNotification(camera, {
             android_config: { body: 'Motion detected' }
-        })).resolves.toBe('@channel: Motion detected');
+        }, accountEmail)).resolves.toBe('@channel: Motion detected');
 
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith(
             '@channel: Motion detected',
-            'Front door-2026-11-01_120000.mp4'
+            videoFileName,
+            slackSettings
         );
         await new Promise(setImmediate);
         expect(storeVideoEvent).toHaveBeenCalledWith(
             'Motion detected',
             'https://mega.example/video',
             expect.any(Date),
-            'Front door-2026-11-01_120000.mp4',
+            videoFileName,
             'Front door',
-            null
+            null,
+            '123', undefined
         );
         expect(notifyPushSubscribers).not.toHaveBeenCalled();
     });
@@ -319,7 +355,7 @@ describe('handleRingNotification', () => {
         recordVideoFromCamera.mockResolvedValue(undefined);
         const notificationPromise = handleRingNotification(camera, {
             android_config: { body: 'Motion detected' }
-        });
+        }, accountEmail);
         await new Promise(setImmediate);
 
         expect(releaseFile).not.toHaveBeenCalled();
@@ -329,5 +365,39 @@ describe('handleRingNotification', () => {
         await expect(notificationPromise).rejects.toThrow('Slack unavailable');
         expect(releaseFile).not.toHaveBeenCalled();
         expect(purgeLocalFiles).not.toHaveBeenCalled();
+    });
+
+    it('keeps the recording when Slack is not configured and the Mega upload fails', async () => {
+        getSlackSettings.mockResolvedValue(null);
+        recordVideoFromCamera.mockResolvedValue(undefined);
+        uploadFileToMega.mockRejectedValue(new Error('Mega unavailable'));
+
+        await handleRingNotification({ name: 'Front door' }, { android_config: { body: 'Motion detected' } }, accountEmail);
+        await new Promise(setImmediate);
+        expect(trackPendingUpload.mock.results[0].value).not.toHaveBeenCalled();
+        expect(sendSlackNotificationWithVideo).not.toHaveBeenCalled();
+    });
+
+    it('records and persists events when Slack is not configured for the account', async () => {
+        getSlackSettings.mockResolvedValue(null);
+        recordVideoFromCamera.mockResolvedValue(undefined);
+        uploadFileToMega.mockResolvedValue('https://mega.example/video');
+
+        await expect(handleRingNotification({ name: 'Front door' }, {
+            android_config: { body: 'Motion detected' }
+        }, accountEmail)).resolves.toBe('@channel: Motion detected');
+        await new Promise(setImmediate);
+
+        expect(sendSlackNotificationWithVideo).not.toHaveBeenCalled();
+        expect(storeVideoEvent).toHaveBeenCalledWith(
+            'Motion detected',
+            'https://mega.example/video',
+            expect.any(Date),
+            videoFileName,
+            'Front door',
+            null,
+            '123', undefined
+        );
+        expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.any(Object), accountEmail);
     });
 });

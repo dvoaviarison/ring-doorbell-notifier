@@ -21,6 +21,7 @@ beforeEach(async () => {
   logger = { error: jest.fn() };
   const app = express();
   app.use(express.json());
+  app.use((req, _res, next) => { req.accountEmail = req.get('x-test-user') || 'first@example.com'; next(); });
   app.use('/cameras/live', createLiveViewRouter(() => ring, logger));
   server = await new Promise(resolve => {
     const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
@@ -83,6 +84,17 @@ test('starts and stops a camera session and rejects duplicate IDs', async () => 
   expect(session.end).toHaveBeenCalledTimes(1);
 });
 
+test('another account cannot stop a live session', async () => {
+  expect((await post('start', { cameraName: 'Front', sdp: 'v=0', sessionId })).status).toBe(200);
+  const response = await fetch(`${origin}/cameras/live/stop`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-test-user': 'second@example.com' },
+    body: JSON.stringify({ sessionId })
+  });
+  expect(response.status).toBe(404);
+  expect(session.end).not.toHaveBeenCalled();
+  expect((await post('stop', { sessionId })).status).toBe(204);
+});
 test('validates input and reports missing cameras and Ring failures', async () => {
   expect((await post('start', {})).status).toBe(400);
   expect((await post('stop', {})).status).toBe(400);

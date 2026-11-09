@@ -78,7 +78,7 @@
         "summary": "Get Ring connection status",
         "responses": {
           "200": {
-            "description": "Whether Ring is connected or the current browser session is authenticated",
+            "description": "Whether Ring is connected for the signed-in Google account",
             "content": {
               "application/json": {
                 "schema": {
@@ -100,7 +100,7 @@
       "post": {
         "tags": ["Ring"],
         "summary": "Sign in to Ring",
-        "description": "If Ring requires two-factor verification, the response indicates that an MFA code is needed. The browser session is established after successful authentication.",
+        "description": "If Ring requires two-factor verification, the response indicates that an MFA code is needed. The connection is saved for the signed-in Google account.",
         "requestBody": {
           "required": true,
           "content": {
@@ -587,10 +587,33 @@
         }
       }
     },
-    "/update-slack-channel": {
-      "post": {
+    "/settings/slack": {
+      "get": {
         "tags": ["Settings"],
-        "summary": "Update the Slack channel",
+        "summary": "Get the signed-in user's Slack settings without revealing secrets",
+        "responses": {
+          "200": {
+            "description": "Channel and secret configuration status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "channelId": { "type": "string" },
+                    "hasBotToken": { "type": "boolean" },
+                    "hasSigningSecret": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "put": {
+        "tags": ["Settings"],
+        "summary": "Update the signed-in user's Slack settings",
+        "description": "Omitted or empty secret fields retain their existing values.",
         "requestBody": {
           "required": true,
           "content": {
@@ -599,9 +622,9 @@
                 "type": "object",
                 "required": ["channelId"],
                 "properties": {
-                  "channelId": {
-                    "type": "string"
-                  }
+                  "channelId": { "type": "string" },
+                  "botToken": { "type": "string", "format": "password" },
+                  "signingSecret": { "type": "string", "format": "password" }
                 }
               }
             }
@@ -609,34 +632,25 @@
         },
         "responses": {
           "200": {
-            "description": "Setting updated",
+            "description": "Saved channel and secret configuration status",
             "content": {
-              "text/html": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "type": "object",
+                  "properties": {
+                    "channelId": { "type": "string" },
+                    "hasBotToken": { "type": "boolean" },
+                    "hasSigningSecret": { "type": "boolean" }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "A non-empty channelId is required",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
+            "$ref": "#/components/responses/BadRequest"
           },
           "500": {
-            "description": "Setting could not be updated",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
+            "$ref": "#/components/responses/ServerError"
           }
         }
       }
@@ -659,7 +673,7 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "a_eye_session",
-        "description": "Google session established through /auth/google. Sign in with an authorized account before opening Swagger."
+        "description": "Google session established through /auth/google. Sign in with a verified Google account before opening Swagger."
       },
       "ringSession": {
         "type": "apiKey",

@@ -13,6 +13,7 @@ import { deletePushSubscription, getPushSubscriptions } from '../dbHelper/index.
 import { getPushConfiguration, notifyPushSubscribers } from './index.mjs';
 
 describe('browser push notifications', () => {
+    const accountEmail = 'person@example.com';
     const previousConfig = {
         publicKey: process.env.WEB_PUSH_VAPID_PUBLIC_KEY,
         privateKey: process.env.WEB_PUSH_VAPID_PRIVATE_KEY,
@@ -55,7 +56,7 @@ describe('browser push notifications', () => {
         ]);
         const timestamp = new Date('2026-11-06T12:00:00.000Z');
 
-        await notifyPushSubscribers({ description: 'Motion detected', timestamp });
+        await notifyPushSubscribers({ description: 'Motion detected', timestamp }, accountEmail);
 
         expect(webPush.setVapidDetails).toHaveBeenCalledWith(
             'mailto:admin@example.com',
@@ -81,15 +82,15 @@ describe('browser push notifications', () => {
         getPushSubscriptions.mockResolvedValue([subscription]);
         webPush.sendNotification.mockRejectedValue({ statusCode: 410 });
 
-        await notifyPushSubscribers({ description: 'Motion detected', timestamp: new Date() });
+        await notifyPushSubscribers({ description: 'Motion detected', timestamp: new Date() }, accountEmail);
 
-        expect(deletePushSubscription).toHaveBeenCalledWith(subscription.endpoint);
+        expect(deletePushSubscription).toHaveBeenCalledWith(subscription.endpoint, accountEmail);
     });
 
     it('does not access MongoDB when push configuration is missing', async () => {
         delete process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
 
-        await notifyPushSubscribers({ description: 'Motion detected', timestamp: new Date() });
+        await notifyPushSubscribers({ description: 'Motion detected', timestamp: new Date() }, accountEmail);
 
         expect(getPushSubscriptions).not.toHaveBeenCalled();
         expect(webPush.sendNotification).not.toHaveBeenCalled();

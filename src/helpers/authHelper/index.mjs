@@ -2,7 +2,6 @@ import crypto from 'crypto';
 import { logger } from '../logHelper/index.mjs';
 import session from 'express-session';
 import { RingRestClient } from 'ring-client-api/rest-client';
-import { storeRefreshToken } from '../dbHelper/index.mjs';
 
 export function setupSession(app) {
   const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -32,7 +31,7 @@ export function setupAuth(app, logger, onRingLogin, isRingConnected = () => fals
 
   app.get('/auth/ring/status', (req, res) => {
     res.json({
-      authenticated: isRingConnected() || req.session.ringAuthenticated === true
+      authenticated: isRingConnected(req.accountEmail)
     });
   });
 
@@ -52,6 +51,7 @@ export function setupAuth(app, logger, onRingLogin, isRingConnected = () => fals
         const sessionId = req.sessionID;
         const pending = {
           client,
+          accountEmail: req.accountEmail,
           expiresAt: Date.now() + loginTimeoutMs,
           timeout: undefined
         };
@@ -74,7 +74,7 @@ export function setupAuth(app, logger, onRingLogin, isRingConnected = () => fals
   app.post('/auth/ring/mfa', async (req, res) => {
     const { code } = req.body ?? {};
     const pending = pendingRingLogins.get(req.sessionID);
-    if (!pending || pending.expiresAt < Date.now()) {
+    if (!pending || pending.accountEmail !== req.accountEmail || pending.expiresAt < Date.now()) {
       clearPendingRingLogin(req.sessionID);
       return res.status(400).json({ error: 'Your login session expired. Start again.' });
     }
@@ -130,8 +130,7 @@ async function completeRingLogin(req, res, client, onRingLogin) {
   }
 
   try {
-    await storeRefreshToken(client.refreshToken);
-    await onRingLogin(client.refreshToken);
+    await onRingLogin(client.refreshToken, req.accountEmail);
   } catch (error) {
     logger.error('Ring token could not be saved or the service could not be initialized:', error);
     return res.status(500).json({ error: 'Could not save your Ring login or start the notifier. Check server logs.' });
@@ -143,16 +142,14 @@ async function completeRingLogin(req, res, client, onRingLogin) {
         logger.error('Could not establish an authenticated session:', error);
         return resolve(res.status(500).json({ error: 'Login succeeded, but the session could not be created.' }));
       }
-      req.session.ringAuthenticated = true;
       resolve(res.json({ authenticated: true }));
     });
   });
 }
 
-export function isSlackRequestValid(req) {
-  const signingSecret = process.env.SLACK_SIGNING_SECRET;
+export function isSlackRequestValid(req, signingSecret) {
   if (!signingSecret) {
-    logger.warn('SLACK_SIGNING_SECRET is not set. Cannot verify Slack requests.');
+    logger.warn('Slack signing secret is not configured. Cannot verify Slack requests.');
     return false;
   }
 
@@ -183,14 +180,22 @@ export function isSlackRequestValid(req) {
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
+export async function resolveSlackAccount(req, getCandidates, logger) {
+  const candidates = await getCandidates();
+  const matches = candidates.filter(({ signingSecret }) =>
+    typeof signingSecret === 'string' && signingSecret && isSlackRequestValid(req, signingSecret));
+  if (matches.length > 1) logger.warn('Slack request matched multiple accounts; use a separate Slack app for each account.');
+  return matches.length === 1 ? matches[0].email : undefined;
+}
+
 function ensureAuthenticated(req, res, next, isRingConnected) {
   // Bypass session authentication for valid Slack bot requests
-  if (isSlackRequestValid(req)) {
+  if (req.slackAuthenticated) {
     logger.info('Bypassing auth for Slack bot request');
     return next();
   }
 
-  if (isRingConnected() || req.session?.ringAuthenticated === true) {
+  if (isRingConnected(req.accountEmail)) {
     return next();
   }
 
@@ -198,7 +203,7 @@ function ensureAuthenticated(req, res, next, isRingConnected) {
 }
 
 export function authMiddleware(req, res, next, isRingConnected = () => false) {
-  const publicPaths = ['/auth/ring/', '/health'];
+  const publicPaths = ['/auth/ring/', '/health', '/settings/', '/push/'];
 
   const isPublicPath = publicPaths.some(path => req.path.startsWith(path));
   const isApplicationEntry = req.path === '/' || req.path === '/login' ||

@@ -1,11 +1,11 @@
 import dotenv from 'dotenv';
 import { run } from './app.mjs';
 import { logger } from './helpers/logHelper/index.mjs';
-import { updateEnvValue, purgeLocalFiles } from './helpers/fileHelper/index.mjs';
+import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
 import { contextMiddleware } from './helpers/contextHelper/index.mjs';
-import { setupAuth, setupSession, authMiddleware, isSlackRequestValid } from './helpers/authHelper/index.mjs';
+import { setupAuth, setupSession, authMiddleware, resolveSlackAccount } from './helpers/authHelper/index.mjs';
 import { createAccessMiddleware, createGoogleAuth } from './helpers/googleAuthHelper/index.mjs';
 import { setupApiDocs } from './helpers/apiDocsHelper/index.mjs';
 import {
@@ -13,11 +13,18 @@ import {
   getVideoEventMegaLink,
   getVideoEventThumbnailLink,
   getVideoEventsForDay,
-  storePushSubscription
+  storePushSubscription,
+  getSlackSettings,
+  updateSlackSettings,
+  getSlackSigningCandidates,
+  listRingAccounts,
+  storeRefreshToken
 } from './helpers/dbHelper/index.mjs';
 import { getPushConfiguration } from './helpers/pushNotificationHelper/index.mjs';
 import { openMegaFileStream } from './helpers/videoStreamHelper/index.mjs';
 import { createLiveViewRouter } from './helpers/liveViewHelper/index.mjs';
+import { createAccountRingManager } from './helpers/accountRingHelper/index.mjs';
+import { createSlackSettingsRouter } from './helpers/slackSettingsHelper/index.mjs';
 import express from 'express';
 import { readFileSync } from 'node:fs';
 import path from 'path';
@@ -32,61 +39,25 @@ const port = env.APP_SERVER_PORT;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const apiSpec = JSON.parse(readFileSync(path.join(__dirname, 'openapi.json'), 'utf8'));
-let ringApi;
-let ringApiCleanup;
-let ringApiActivation = 0;
+const ringAccounts = createAccountRingManager({
+  createApi: getLoggedInRingApi, run, logger,
+  saveToken: storeRefreshToken
+});
 
-function updateEnvFile(req, res) {
-  const { key, value } = req;
-  if (!value) {
-    return res.status(400).send('Value is required');
-  }
-
-  try {
-    updateEnvValue(key, value);
-    res.status(200).send(`Updated ${key} to ${value}`);
-  } catch (error) {
-    logger.error('Error updating .env file:', error);
-    res.status(500).send('An error occurred while updating the .env file');
-  }
-}
-
-async function capture(cameraName) {
+async function capture(cameraName, accountEmail) {
+  const ringApi = ringAccounts.get(accountEmail);
+  const ringAccountId = ringAccounts.getRingAccountId(accountEmail);
   if (!ringApi) {
     throw new Error('Ring is not authenticated yet. Sign in to Ring first.');
   }
   logger.info(`Capture on demand request received for ${cameraName}`);
   const locations = await ringApi.getLocations();
   const camera = findCamera(locations, cameraName);
+  if (!camera) throw new Error('Camera not found.');
   const notif = { android_config: { body: `There is a motion at your ${camera.name}` } };
-  const notification = await handleRingNotification(camera, notif);
+  const notification = await handleRingNotification(camera, notif, accountEmail, ringAccountId);
   purgeLocalFiles();
   return notification;
-}
-
-async function activateRingApi(refreshToken) {
-  const activation = ++ringApiActivation;
-  const api = await getLoggedInRingApi(refreshToken);
-  let cleanup;
-  try {
-    cleanup = await run(api);
-  } catch (error) {
-    api.disconnect();
-    throw error;
-  }
-
-  if (activation !== ringApiActivation) {
-    cleanup();
-    api.disconnect();
-    return;
-  }
-
-  const previousApi = ringApi;
-  const previousCleanup = ringApiCleanup;
-  ringApi = api;
-  ringApiCleanup = cleanup;
-  previousCleanup?.();
-  previousApi?.disconnect();
 }
 
 const captureRawBody = (req, _res, buffer) => { req.rawBody = buffer.toString('utf8'); };
@@ -95,14 +66,16 @@ app.use(express.urlencoded({ extended: true, verify: captureRawBody }));
 
 const googleAuth = createGoogleAuth(env, logger);
 googleAuth.setup(app);
-app.use(createAccessMiddleware(googleAuth, isSlackRequestValid));
+app.use(createAccessMiddleware(googleAuth, req => resolveSlackAccount(req, async () =>
+  await getSlackSigningCandidates(), logger)));
 
 // Configure session and Ring authentication
 setupSession(app);
-app.use((req, res, next) => authMiddleware(req, res, next, () => Boolean(ringApi)));
+app.use((req, res, next) => authMiddleware(req, res, next, email => Boolean(ringAccounts.get(email))));
 app.use(contextMiddleware);
 
 setupApiDocs(app, apiSpec);
+app.use('/settings', createSlackSettingsRouter({ getSlackSettings, updateSlackSettings, logger }));
 
 // Healthcheck endpoint
 app.get('/health', (req, res) => {
@@ -116,23 +89,17 @@ app.post('/health', (req, res) => {
   res.send('Healthy');
 });
 
-// POST endpoint to update slack channel ID
-app.post('/update-slack-channel', (req, res) => {
-  const { channelId } = req.body;
-  updateEnvFile({ key: 'SLACK_CHANNEL_ID', value: channelId }, res);
-});
-
 // POST endpoint to force notification for slack
 app.post('/capture', (req, res) => {
   const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
   if (typeof cameraName !== 'string' || !cameraName.trim()) {
     return res.status(400).send('Select a camera before starting a capture.');
   }
-  if (!ringApi) {
+  if (!ringAccounts.get(req.accountEmail)) {
     return res.status(503).send('Ring is not connected. Sign in through A-Eye or the Ring authentication API.');
   }
 
-  void capture(cameraName.trim()).catch((error) => {
+  void capture(cameraName.trim(), req.accountEmail).catch((error) => {
     logger.error(`Background capture failed for ${cameraName}:`, error);
   });
   return res.status(202).send('Capture started. Recording and Slack delivery are continuing in the background.');
@@ -141,6 +108,7 @@ app.post('/capture', (req, res) => {
 // GET endpoint to expose camera names
 app.get('/cameras', async (req, res) => {
   try {
+    const ringApi = ringAccounts.get(req.accountEmail);
     if (!ringApi) {
       return res.status(503).json({ error: 'Ring is not authenticated. Sign in to Ring first.' });
     }
@@ -158,7 +126,7 @@ app.get('/cameras', async (req, res) => {
   }
 });
 
-app.use('/cameras/live', createLiveViewRouter(() => ringApi, logger));
+app.use('/cameras/live', createLiveViewRouter(req => ringAccounts.get(req.accountEmail), logger));
 
 app.get('/events', async (req, res) => {
   let start;
@@ -196,7 +164,7 @@ app.get('/events', async (req, res) => {
   }
 
   try {
-    const events = await getVideoEventsForDay(start, end);
+    const events = await getVideoEventsForDay(start, end, ringAccounts.getRingAccountId(req.accountEmail));
     res.json(events);
   } catch (error) {
     logger.error('Error fetching video events:', error);
@@ -214,7 +182,7 @@ app.get('/events/:id/video', async (req, res) => {
   });
 
   try {
-    const megaLink = await getVideoEventMegaLink(req.params.id);
+    const megaLink = await getVideoEventMegaLink(req.params.id, ringAccounts.getRingAccountId(req.accountEmail));
     if (clientDisconnected || res.destroyed) return;
     if (!megaLink) {
       return res.status(404).send('Video event not found.');
@@ -270,7 +238,7 @@ app.get('/events/:id/thumbnail', async (req, res) => {
   });
 
   try {
-    const thumbnailLink = await getVideoEventThumbnailLink(req.params.id);
+    const thumbnailLink = await getVideoEventThumbnailLink(req.params.id, ringAccounts.getRingAccountId(req.accountEmail));
     if (clientDisconnected || res.destroyed) return;
     if (!thumbnailLink) {
       return res.status(404).end();
@@ -323,7 +291,7 @@ app.post('/push/subscriptions', async (req, res) => {
   }
 
   try {
-    await storePushSubscription(subscription);
+    await storePushSubscription(subscription, req.accountEmail);
     res.status(201).json({ subscribed: true });
   } catch (error) {
     logger.error('Error storing browser push subscription:', error);
@@ -338,7 +306,7 @@ app.delete('/push/subscriptions', async (req, res) => {
   }
 
   try {
-    await deletePushSubscription(endpoint);
+    await deletePushSubscription(endpoint, req.accountEmail);
     res.status(204).end();
   } catch (error) {
     logger.error('Error deleting browser push subscription:', error);
@@ -371,14 +339,10 @@ function isAllowedPushEndpoint(endpoint) {
   }
 }
 
-setupAuth(app, logger, async (refreshToken) => {
-  await activateRingApi(refreshToken);
-}, () => Boolean(ringApi));
+setupAuth(app, logger, (refreshToken, email) => ringAccounts.activate(email, refreshToken),
+  email => Boolean(ringAccounts.get(email)));
 
+await ringAccounts.restore(await listRingAccounts());
 app.listen(port, () => {
   logger.info(`Server is running on http://localhost:${port}`);
-  logger.info('Starting the Ring notifier');
-  activateRingApi().catch((error) => {
-    logger.warn('Ring is not authenticated yet. Sign in through A-Eye or the Ring authentication API:', error.message);
-  });
 });
