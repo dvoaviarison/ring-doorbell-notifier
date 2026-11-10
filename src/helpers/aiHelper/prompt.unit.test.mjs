@@ -21,6 +21,14 @@ import { GoogleAIFileManager } from '@google/generative-ai/server';
 import { getVideoDescriptionViaGemini } from './index.mjs';
 import { prompts } from './prompts.mjs';
 
+test('prompt limits person events to people approaching or close to the house', () => {
+    expect(prompts.videoDescription).toContain('Use "person" only when at least one person is visibly approaching or is close to the house');
+    expect(prompts.videoDescription).toContain('People only walking past at a distance');
+    expect(prompts.videoDescription).toContain('do not qualify as "person"');
+    expect(prompts.videoDescription).toContain('including a distant passerby alone');
+    expect(prompts.videoDescription).toContain('If it is unclear whether anyone is approaching or close to the house, do not assume they are');
+});
+
 test('uses the backend prompt instead of an environment override', async () => {
     const generateContent = jest.fn().mockResolvedValue({
         response: { text: () => '{"description":"A person is walking.","category":"person"}' }
