@@ -96,14 +96,74 @@ describe('Google authentication', () => {
     expect(verifyIdToken).toHaveBeenCalledWith({ idToken: 'test-token', audience: 'client-id' });
     const setCookies = callback.headers.get('set-cookie');
     expect(setCookies.includes('Secure')).toBe(secure);
+    expect(setCookies).toContain('Max-Age=864000');
+    expect(setCookies).toContain('HttpOnly');
+    expect(setCookies).toContain('SameSite=Lax');
     const session = setCookies.match(/a_eye_session=([^;,]+)/)[0];
+    const initial = verifySignedPayload(session.slice('a_eye_session='.length), secret);
+    expect(initial.exp - Math.floor(Date.now() / 1000)).toBeGreaterThanOrEqual(863999);
+    expect(initial.exp - Math.floor(Date.now() / 1000)).toBeLessThanOrEqual(864000);
     const allowed = await fetch(`${url}/events`, { headers: { 'x-test-host': host, cookie: session } });
     expect(allowed.status).toBe(200);
+    expect(allowed.headers.get('set-cookie')).toContain('Max-Age=864000');
     expect(await allowed.json()).toEqual({ ok: true, email: 'user@example.com' });
     const status = await fetch(`${url}/auth/session`, { headers: { 'x-test-host': host, cookie: session } });
     expect(await status.json()).toEqual({ authenticated: true, email: 'user@example.com', picture: 'https://example.com/avatar.png' });
     expect((await fetch(`${url}/auth/logout`, { method: 'POST', headers: { 'x-test-host': host, origin: 'https://attacker.example', cookie: session } })).status).toBe(403);
-    expect((await fetch(`${url}/auth/logout`, { method: 'POST', headers: { 'x-test-host': host, origin, cookie: session } })).status).toBe(204);
+    const logout = await fetch(`${url}/auth/logout`, { method: 'POST', headers: { 'x-test-host': host, origin, cookie: session } });
+    expect(logout.status).toBe(204);
+    expect(logout.headers.get('set-cookie')).toMatch(/a_eye_session=;/);
+    expect(logout.headers.get('set-cookie')).not.toContain('Max-Age=864000');
+  });
+
+  test.each(['/auth/session', '/events'])('renews valid sessions for ten days on %s', async (path) => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = signPayload({
+      sub: 'subject',
+      email: 'user@example.com',
+      picture: 'https://example.com/avatar.png',
+      exp: now + 60
+    }, secret);
+    const response = await fetch(`${url}${path}`, {
+      headers: { 'x-test-host': 'a-eye-home.onrender.com', cookie: `a_eye_session=${token}` }
+    });
+    expect(response.status).toBe(200);
+    const cookie = response.headers.get('set-cookie');
+    expect(cookie).toContain('Max-Age=864000');
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('Secure');
+    expect(cookie).toContain('SameSite=Lax');
+    const renewedToken = cookie.match(/a_eye_session=([^;,]+)/)[1];
+    const renewed = verifySignedPayload(renewedToken, secret);
+    expect(renewed).toMatchObject({
+      sub: 'subject',
+      email: 'user@example.com',
+      picture: 'https://example.com/avatar.png'
+    });
+    expect(renewed.exp).toBeGreaterThanOrEqual(now + 864000);
+    expect(renewed.exp).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 864000);
+    expect(verifySignedPayload(token, secret, (now + 61) * 1000)).toBeUndefined();
+    expect(verifySignedPayload(renewedToken, secret, (now + 61) * 1000)).toBeDefined();
+    expect(verifySignedPayload(renewedToken, secret, renewed.exp * 1000)).toBeUndefined();
+  });
+
+  test('does not renew expired sessions or issue cookies to unapproved hosts', async () => {
+    const expired = signPayload({ sub: 'subject', email: 'user@example.com', exp: Date.now() / 1000 - 1 }, secret);
+    const session = await fetch(`${url}/auth/session`, {
+      headers: { 'x-test-host': 'localhost:5173', cookie: `a_eye_session=${expired}` }
+    });
+    expect(await session.json()).toEqual({ authenticated: false });
+    expect(session.headers.get('set-cookie')).toBeNull();
+    const protectedResponse = await fetch(`${url}/events`, {
+      headers: { 'x-test-host': 'localhost:5173', cookie: `a_eye_session=${expired}` }
+    });
+    expect(protectedResponse.status).toBe(401);
+    expect(protectedResponse.headers.get('set-cookie')).toBeNull();
+    const valid = signPayload({ sub: 'subject', email: 'user@example.com', exp: Date.now() / 1000 + 60 }, secret);
+    const unknownHost = await fetch(`${url}/auth/session`, {
+      headers: { 'x-test-host': 'attacker.example', cookie: `a_eye_session=${valid}` }
+    });
+    expect(unknownHost.headers.get('set-cookie')).toBeNull();
   });
 
   test('rejects unapproved hosts and state replay across origins', async () => {

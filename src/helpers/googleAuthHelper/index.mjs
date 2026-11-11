@@ -3,7 +3,7 @@ import { OAuth2Client } from 'google-auth-library';
 
 const sessionCookie = 'a_eye_session';
 const stateCookie = 'a_eye_oauth_state';
-const sessionAge = 8 * 60 * 60;
+const sessionAge = 10 * 24 * 60 * 60;
 const stateAge = 10 * 60;
 
 export function signPayload(payload, secret) {
@@ -99,9 +99,24 @@ export function createGoogleAuth(env, logger, clientFactory = (id, secret, redir
     return payload;
   }
 
+  function setSession(res, origin, user) {
+    res.cookie(sessionCookie, signPayload({
+      sub: user.sub,
+      email: user.email,
+      ...(typeof user.picture === 'string' ? { picture: user.picture } : {}),
+      exp: Math.floor(Date.now() / 1000) + sessionAge
+    }, secret), cookieOptions(origin, sessionAge));
+  }
+
+  function renewSession(req, res, user) {
+    const origin = getOrigin(req);
+    if (origin) setSession(res, origin, user);
+  }
+
   function setup(app) {
     app.get('/auth/session', (req, res) => {
       const user = getUser(req);
+      if (user) renewSession(req, res, user);
       res.set('Cache-Control', 'no-store').json(user ? {
         authenticated: true,
         email: user.email,
@@ -143,12 +158,11 @@ export function createGoogleAuth(env, logger, clientFactory = (id, secret, redir
           return res.redirect('/?authError=notAllowed');
         }
         const picture = getProfilePicture(identity.picture);
-        res.cookie(sessionCookie, signPayload({
+        setSession(res, origin, {
           sub: identity.sub,
           email,
-          ...(picture ? { picture } : {}),
-          exp: Math.floor(Date.now() / 1000) + sessionAge
-        }, secret), cookieOptions(origin, sessionAge));
+          ...(picture ? { picture } : {})
+        });
         return res.redirect('/');
       } catch (error) {
         logger.error('Google sign-in failed:', error);
@@ -167,6 +181,7 @@ export function createGoogleAuth(env, logger, clientFactory = (id, secret, redir
   function middleware(req, res, next) {
     const user = getUser(req);
     if (user) {
+      renewSession(req, res, user);
       req.accountEmail = user.email.toLowerCase();
       return next();
     }
