@@ -26,7 +26,7 @@ describe('browser push notifications', () => {
         process.env.WEB_PUSH_VAPID_PRIVATE_KEY = 'private-key';
         process.env.WEB_PUSH_VAPID_SUBJECT = 'mailto:admin@example.com';
         getPushSubscriptions.mockResolvedValue([]);
-        getPushCategories.mockResolvedValue(['delivery', 'vehicle', 'person', 'animal', 'uncategorized']);
+        getPushCategories.mockResolvedValue(['delivery', 'vehicle', 'person', 'animal', 'trash', 'uncategorized']);
         webPush.sendNotification.mockResolvedValue(undefined);
         jest.clearAllMocks();
     });
@@ -99,6 +99,19 @@ describe('browser push notifications', () => {
         expect(webPush.sendNotification).not.toHaveBeenCalled();
 
         await notifyPushSubscribers({ description: 'A person walks.', category: 'person', timestamp: new Date() }, accountEmail);
+        expect(webPush.sendNotification).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends trash alerts when selected and respects disabling them', async () => {
+        getPushSubscriptions.mockResolvedValue([
+            { endpoint: 'https://fcm.googleapis.com/fcm/send/test', subscription: {} }
+        ]);
+        getPushCategories.mockResolvedValue(['trash']);
+        await notifyPushSubscribers({ description: 'A recycling truck passes.', category: 'trash', timestamp: new Date() }, accountEmail);
+        expect(webPush.sendNotification).toHaveBeenCalledTimes(1);
+
+        getPushCategories.mockResolvedValue([]);
+        await notifyPushSubscribers({ description: 'A trash truck passes.', category: 'trash', timestamp: new Date() }, accountEmail);
         expect(webPush.sendNotification).toHaveBeenCalledTimes(1);
     });
 

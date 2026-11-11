@@ -174,7 +174,8 @@ export async function getPushCategories(email) {
     try {
         const settings = await getAccountConfig(accountEmail, 'pushCategories');
         if (!Array.isArray(settings?.value)) return [...eventCategoryList];
-        return eventCategoryList.filter((category) => settings.value.includes(category));
+        return eventCategoryList.filter((category) =>
+            settings.value.includes(category) || (category === 'trash' && settings.trashPreferenceSet !== true));
     } catch (error) {
         logger.error('Error connecting to MongoDB or fetching push notification categories:', error);
         throw error;
@@ -192,7 +193,7 @@ export async function setPushCategories(email, categories) {
         const key = accountConfigKey(accountEmail, 'pushCategories');
         await client.db(dbName).collection(configCollectionName).updateOne(
             { key, accountEmail },
-            { $set: { key, accountEmail, type: 'pushCategories', value } },
+            { $set: { key, accountEmail, type: 'pushCategories', value, trashPreferenceSet: true } },
             { upsert: true }
         );
         return value;

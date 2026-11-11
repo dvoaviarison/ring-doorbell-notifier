@@ -619,7 +619,7 @@
                 "properties": {
                   "categories": {
                     "type": "array",
-                    "items": { "type": "string", "enum": ["delivery", "vehicle", "person", "animal", "uncategorized"] }
+                    "items": { "type": "string", "enum": ["delivery", "vehicle", "person", "animal", "trash", "uncategorized"] }
                   }
                 }
               }
@@ -876,7 +876,7 @@
           "category": {
             "type": "string",
             "nullable": true,
-            "enum": ["delivery", "vehicle", "person", "animal", "uncategorized"],
+            "enum": ["delivery", "vehicle", "person", "animal", "trash", "uncategorized"],
             "description": "AI event category; null when AI is unavailable or disabled, and absent on older events"
           },
           "cameraName": {
@@ -899,11 +899,11 @@
         "properties": {
           "categories": {
             "type": "array",
-            "items": { "type": "string", "enum": ["delivery", "vehicle", "person", "animal", "uncategorized"] }
+            "items": { "type": "string", "enum": ["delivery", "vehicle", "person", "animal", "trash", "uncategorized"] }
           },
           "available": {
             "type": "array",
-            "items": { "type": "string", "enum": ["delivery", "vehicle", "person", "animal", "uncategorized"] }
+            "items": { "type": "string", "enum": ["delivery", "vehicle", "person", "animal", "trash", "uncategorized"] }
           }
         }
       },

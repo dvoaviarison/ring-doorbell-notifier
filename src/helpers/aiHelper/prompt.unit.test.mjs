@@ -29,6 +29,12 @@ test('prompt limits person events to people approaching or close to the house', 
     expect(prompts.videoDescription).toContain('If it is unclear whether anyone is approaching or close to the house, do not assume they are');
 });
 
+test('prompt prioritizes visible trash or recycling trucks even when passing', () => {
+    expect(prompts.videoDescription).toContain('garbage, trash collection, or recycling truck is visible, even if it is only passing by');
+    expect(prompts.videoDescription).toContain('Do not assume a truck collects trash or recycling unless it is visibly identifiable as such');
+    expect(prompts.videoDescription).toContain('choose trash first');
+});
+
 test('uses the backend prompt instead of an environment override', async () => {
     const generateContent = jest.fn().mockResolvedValue({
         response: { text: () => '{"description":"A person is walking.","category":"person"}' }
@@ -61,7 +67,7 @@ test('uses the backend prompt instead of an environment override', async () => {
     }
 });
 
-test.each(['delivery', 'vehicle', 'person', 'animal', 'uncategorized'])(
+test.each(['delivery', 'vehicle', 'person', 'animal', 'trash', 'uncategorized'])(
     'accepts the %s category',
     async (category) => {
         GoogleGenerativeAI.mockImplementation(() => ({

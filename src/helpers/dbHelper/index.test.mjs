@@ -368,10 +368,19 @@ describe('Ring refresh token persistence', () => {
     it('defaults push notification categories to all and honors saved selections', async () => {
         client.findOne.mockResolvedValueOnce(null);
         await expect(getPushCategories('person@example.com'))
-            .resolves.toEqual(['delivery', 'vehicle', 'person', 'animal', 'uncategorized']);
+            .resolves.toEqual(['delivery', 'vehicle', 'person', 'animal', 'trash', 'uncategorized']);
 
         client.findOne.mockResolvedValueOnce({ value: ['person', 'delivery'] });
+        await expect(getPushCategories('person@example.com')).resolves.toEqual(['delivery', 'person', 'trash']);
+
+        client.findOne.mockResolvedValueOnce({ value: [] });
+        await expect(getPushCategories('person@example.com')).resolves.toEqual(['trash']);
+
+        client.findOne.mockResolvedValueOnce({ value: ['person', 'delivery'], trashPreferenceSet: true });
         await expect(getPushCategories('person@example.com')).resolves.toEqual(['delivery', 'person']);
+
+        client.findOne.mockResolvedValueOnce({ value: ['trash'], trashPreferenceSet: true });
+        await expect(getPushCategories('person@example.com')).resolves.toEqual(['trash']);
     });
 
     it('stores push notification categories and rejects invalid ones', async () => {
@@ -383,7 +392,8 @@ describe('Ring refresh token persistence', () => {
                 key: 'account:person@example.com:pushCategories',
                 accountEmail: 'person@example.com',
                 type: 'pushCategories',
-                value: ['delivery', 'person']
+                value: ['delivery', 'person'],
+                trashPreferenceSet: true
             } },
             { upsert: true }
         );
