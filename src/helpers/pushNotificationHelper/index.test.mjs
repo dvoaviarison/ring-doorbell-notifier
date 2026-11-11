@@ -113,6 +113,38 @@ describe('browser push notifications', () => {
         expect(webPush.sendNotification).not.toHaveBeenCalled();
     });
 
+    it('sends doorbell presses regardless of category preferences and includes call details', async () => {
+        getPushCategories.mockResolvedValue([]);
+        getPushSubscriptions.mockResolvedValue([
+            {
+                endpoint: 'https://fcm.googleapis.com/fcm/send/test',
+                subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/test' }
+            }
+        ]);
+        const timestamp = new Date('2026-11-06T12:00:00.000Z');
+
+        await notifyPushSubscribers({
+            description: 'Someone pressed the doorbell',
+            timestamp,
+            cameraName: 'Front Door',
+            category: 'person',
+            isDoorbellPress: true
+        }, accountEmail);
+
+        expect(getPushCategories).not.toHaveBeenCalled();
+        expect(webPush.sendNotification).toHaveBeenCalledWith(
+            { endpoint: 'https://fcm.googleapis.com/fcm/send/test' },
+            JSON.stringify({
+                title: 'Doorbell pressed',
+                body: 'Someone pressed the doorbell',
+                url: '/',
+                tag: `ring-event-${timestamp.getTime()}`,
+                cameraName: 'Front Door',
+                doorbellPress: true
+            })
+        );
+    });
+
     it('does not access MongoDB when push configuration is missing', async () => {
         delete process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
 

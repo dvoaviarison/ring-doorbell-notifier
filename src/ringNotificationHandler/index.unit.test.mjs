@@ -462,4 +462,30 @@ describe('handleRingNotification', () => {
         );
         expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.any(Object), accountEmail);
     });
+
+    it('sends doorbell call notifications immediately without sending a duplicate after upload', async () => {
+        getSlackSettings.mockResolvedValue(null);
+        recordVideoFromCamera.mockResolvedValue(undefined);
+        let finishUpload;
+        uploadFileToMega.mockReturnValue(new Promise(resolve => {
+            finishUpload = resolve;
+        }));
+
+        await handleRingNotification({ name: 'Front door' }, {
+            android_config: {
+                category: 'com.ring.pn.live-event.ding',
+                body: 'Someone pressed the doorbell'
+            }
+        }, accountEmail);
+        expect(notifyPushSubscribers).toHaveBeenCalledTimes(1);
+        expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({
+            description: 'Someone pressed the doorbell',
+            cameraName: 'Front door',
+            isDoorbellPress: true
+        }), accountEmail);
+
+        finishUpload('https://mega.example/video');
+        await new Promise(setImmediate);
+        expect(notifyPushSubscribers).toHaveBeenCalledTimes(1);
+    });
 });

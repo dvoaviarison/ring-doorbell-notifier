@@ -33,20 +33,25 @@ export async function notifyPushSubscribers(event, email) {
             env.WEB_PUSH_VAPID_PRIVATE_KEY
         );
         const category = eventCategories.has(event.category) ? event.category : 'uncategorized';
-        if (!(await getPushCategories(accountEmail)).includes(category)) {
+        const isDoorbellPress = event.isDoorbellPress === true;
+        if (!isDoorbellPress && !(await getPushCategories(accountEmail)).includes(category)) {
             return;
         }
         const subscriptions = await getPushSubscriptions(accountEmail);
-        const payload = JSON.stringify({
-            title: 'New Ring video',
+        const payload = {
+            title: isDoorbellPress ? 'Doorbell pressed' : 'New Ring video',
             body: event.description,
             url: '/',
             tag: `ring-event-${event.timestamp.getTime()}`
-        });
+        };
+        if (isDoorbellPress) {
+            payload.cameraName = event.cameraName;
+            payload.doorbellPress = true;
+        }
 
         await Promise.all(subscriptions.map(async ({ endpoint, subscription }) => {
             try {
-                await webPush.sendNotification(subscription, payload);
+                await webPush.sendNotification(subscription, JSON.stringify(payload));
             } catch (error) {
                 if (error.statusCode === 404 || error.statusCode === 410) {
                     try {

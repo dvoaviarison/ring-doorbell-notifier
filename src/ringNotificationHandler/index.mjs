@@ -14,6 +14,7 @@ import { notifyPushSubscribers } from '../helpers/pushNotificationHelper/index.m
 
 const { env } = process;
 const recordingDurationSec = 10;
+const doorbellNotificationCategory = 'com.ring.pn.live-event.ding';
 
 export async function handleRingNotification(camera, notif, emails, ringAccountId) {
     const recipients = Array.isArray(emails) ? emails : [emails];
@@ -22,6 +23,17 @@ export async function handleRingNotification(camera, notif, emails, ringAccountI
     }
     const accountEmails = [...new Set(recipients.map(email => email.trim().toLowerCase()))];
     const accountEmail = accountEmails[0];
+    const isDoorbellPress = notif.android_config?.category === doorbellNotificationCategory;
+    if (isDoorbellPress) {
+        const callEvent = {
+            description: notif.android_config.body,
+            timestamp: new Date(),
+            cameraName: camera.name,
+            isDoorbellPress: true
+        };
+        void Promise.all(accountEmails.map(email => notifyPushSubscribers(callEvent, email)))
+            .catch(error => logger.error('Could not send the doorbell call notification:', error));
+    }
     let settings;
     try {
         settings = await getSlackSettings(accountEmail);
@@ -84,8 +96,10 @@ export async function handleRingNotification(camera, notif, emails, ringAccountI
                 await storeVideoEvent(description, megaLink, timestamp, videoFileName, camera.name, category, ringAccountId, ringEventId);
                 eventSaved = true;
                 logger.info('Mega upload event saved to MongoDB');
-                await Promise.all(accountEmails.map(email =>
-                    notifyPushSubscribers({ description, megaLink, timestamp, category }, email)));
+                if (!isDoorbellPress) {
+                    await Promise.all(accountEmails.map(email =>
+                        notifyPushSubscribers({ description, megaLink, timestamp, category }, email)));
+                }
             } catch (error) {
                 logger.error('Failed to save or notify the account Mega upload event:', error);
             }
