@@ -77,7 +77,9 @@ describe('handleRingNotification', () => {
         storeVideoEvent.mockReset();
         notifyPushSubscribers.mockReset();
         getSlackSettings.mockResolvedValue(slackSettings);
-        storeVideoEvent.mockResolvedValue(undefined);
+        storeVideoEvent.mockImplementation(async (_description, _link, timestamp) => ({
+            id: '0123456789abcdef01234567', timestamp
+        }));
     });
 
     afterAll(() => {
@@ -110,7 +112,10 @@ describe('handleRingNotification', () => {
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledTimes(1);
         expect(sendSlackNotificationWithVideo).toHaveBeenCalledWith('@channel: Motion detected', videoFileName, slackSettings);
         expect(notifyPushSubscribers).toHaveBeenCalledTimes(2);
-        expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({ megaLink: 'https://mega.example/video' }), accountEmail);
+        expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({
+            megaLink: 'https://mega.example/video', id: '0123456789abcdef01234567',
+            timestamp: expect.any(Date), cameraName: 'Front door'
+        }), accountEmail);
         expect(notifyPushSubscribers).toHaveBeenCalledWith(expect.objectContaining({ megaLink: 'https://mega.example/video' }), 'second@example.com');
     });
 
@@ -269,6 +274,8 @@ describe('handleRingNotification', () => {
             description: 'A person is at the front door.',
             megaLink: 'https://mega.example/video',
             category: 'person',
+            id: '0123456789abcdef01234567',
+            cameraName: 'Front door',
             timestamp: expect.any(Date)
         }, accountEmail);
     });

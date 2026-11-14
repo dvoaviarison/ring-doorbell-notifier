@@ -89,6 +89,19 @@ describe('browser push notifications', () => {
         expect(deletePushSubscription).toHaveBeenCalledWith(subscription.endpoint, accountEmail);
     });
 
+    it('includes the saved event identity and timestamp in video notifications', async () => {
+        getPushSubscriptions.mockResolvedValue([{ endpoint: 'endpoint', subscription: {} }]);
+        const timestamp = new Date('2026-11-06T12:00:00.000Z');
+        await notifyPushSubscribers({
+            id: '0123456789abcdef01234567', timestamp, description: 'Motion', cameraName: 'Front Door'
+        }, accountEmail);
+        expect(JSON.parse(webPush.sendNotification.mock.calls[0][1])).toEqual(expect.objectContaining({
+            eventId: '0123456789abcdef01234567',
+            eventTimestamp: '2026-11-06T12:00:00.000Z',
+            cameraName: 'Front Door'
+        }));
+    });
+
     it('skips categories the account did not select', async () => {
         getPushCategories.mockResolvedValue(['person']);
         getPushSubscriptions.mockResolvedValue([

@@ -266,6 +266,14 @@ describe('Ring refresh token persistence', () => {
         );
         expect(client.insertOne).not.toHaveBeenCalled();
     });
+
+    it('returns the original timestamp when a Ring event already exists', async () => {
+        const original = new Date('2026-11-06T23:59:59.000Z');
+        client.updateOne.mockResolvedValue({ matchedCount: 1, upsertedCount: 0 });
+        client.findOne.mockResolvedValue({ timestamp: original });
+        const saved = await storeVideoEvent('Motion', 'https://mega.example/video', new Date(), undefined, 'Front', null, '123', 'ding-1');
+        expect(saved).toEqual({ id: expect.stringMatching(/^[a-f\d]{24}$/), timestamp: original });
+    });
     it.each([
         ['car passing by', 'vehicle'],
         ['person(s)', 'person'],

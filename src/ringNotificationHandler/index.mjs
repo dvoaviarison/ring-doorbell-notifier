@@ -93,12 +93,12 @@ export async function handleRingNotification(camera, notif, emails, ringAccountI
                 const { description, category } = await normalizedEventPromise;
                 const dingId = notif.data?.event?.ding?.id;
                 const ringEventId = typeof dingId === 'string' || typeof dingId === 'number' ? String(dingId) : undefined;
-                await storeVideoEvent(description, megaLink, timestamp, videoFileName, camera.name, category, ringAccountId, ringEventId);
+                const savedEvent = await storeVideoEvent(description, megaLink, timestamp, videoFileName, camera.name, category, ringAccountId, ringEventId);
                 eventSaved = true;
                 logger.info('Mega upload event saved to MongoDB');
                 if (!isDoorbellPress) {
                     await Promise.all(accountEmails.map(email =>
-                        notifyPushSubscribers({ description, megaLink, timestamp, category }, email)));
+                        notifyPushSubscribers({ description, megaLink, ...savedEvent, cameraName: camera.name, category }, email)));
                 }
             } catch (error) {
                 logger.error('Failed to save or notify the account Mega upload event:', error);

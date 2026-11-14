@@ -44,6 +44,11 @@ export async function notifyPushSubscribers(event, email) {
             url: '/',
             tag: `ring-event-${event.timestamp.getTime()}`
         };
+        if (!isDoorbellPress && typeof event.id === 'string' && event.id) {
+            payload.eventId = event.id;
+            payload.eventTimestamp = event.timestamp.toISOString();
+            payload.cameraName = event.cameraName;
+        }
         if (isDoorbellPress) {
             payload.cameraName = event.cameraName;
             payload.doorbellPress = true;

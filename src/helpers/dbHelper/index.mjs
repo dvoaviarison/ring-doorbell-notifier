@@ -276,13 +276,20 @@ export async function storeVideoEvent(description, megaLink, timestamp = new Dat
         };
         if (typeof ringEventId === 'string' && ringEventId) {
             const eventId = new ObjectId(createHash('sha256').update(`${id}:${ringEventId}`).digest('hex').slice(0, 24));
+            let inserted = false;
             try {
-                await collection.updateOne({ _id: eventId }, { $setOnInsert: event }, { upsert: true });
+                const result = await collection.updateOne({ _id: eventId }, { $setOnInsert: event }, { upsert: true });
+                inserted = result.upsertedCount === 1;
             } catch (error) {
                 if (error.code !== 11000 || !await collection.findOne({ _id: eventId, ringAccountId: id })) throw error;
             }
+            if (inserted) return { id: eventId.toString(), timestamp };
+            const existing = await collection.findOne({ _id: eventId, ringAccountId: id }, { projection: { timestamp: 1 } });
+            if (!existing?.timestamp) throw new Error('Could not find the saved video event.');
+            return { id: eventId.toString(), timestamp: existing.timestamp };
         } else {
-            await collection.insertOne(event);
+            const result = await collection.insertOne(event);
+            return { id: result.insertedId.toString(), timestamp };
         }
     } catch (error) {
         logger.error('Error connecting to MongoDB or storing Mega upload event:', error);
