@@ -7,6 +7,14 @@ import { trackPendingUpload } from '../pendingUploadHelper/index.mjs';
 
 const { env } = process;
 
+export function openMegaStorage() {
+    return new Storage({
+        email: env.MEGA_EMAIL,
+        password: env.MEGA_PASSWORD,
+        userAgent: 'RingDoorbellNotifier'
+    }).ready;
+}
+
 export async function uploadFileToMega(fileName) {
     const filePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
     const stopTracking = trackPendingUpload(filePath);
@@ -16,11 +24,7 @@ export async function uploadFileToMega(fileName) {
         if (fileExists) {
             const fileContent = fs.createReadStream(filePath);
             const stats = await stat(filePath);
-            const storage = await new Storage({
-                email: env.MEGA_EMAIL,
-                password: env.MEGA_PASSWORD,
-                userAgent: 'RingDoorbellNotifier'
-            }).ready;
+            const storage = await openMegaStorage();
 
             const file = await storage.upload(
                 {

@@ -305,7 +305,7 @@ export async function getVideoEventsForDay(start, end, ringAccountId) {
         const collection = db.collection(eventsCollectionName);
         const events = await collection.find(
             { ringAccountId: id, timestamp: { $gte: start, $lt: end } },
-            { projection: { _id: 1, timestamp: 1, description: 1, category: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1 } }
+            { projection: { _id: 1, timestamp: 1, description: 1, category: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1, archived: 1 } }
         )
             .sort({ timestamp: -1 })
             .toArray();
@@ -316,6 +316,44 @@ export async function getVideoEventsForDay(start, end, ringAccountId) {
         }));
     } catch (error) {
         logger.error('Error connecting to MongoDB or fetching daily Mega upload events:', error);
+        throw error;
+    }
+}
+
+export async function getOldestVideoEventsToArchive(days = 30) {
+    try {
+        await client.connect();
+        const collection = client.db(dbName).collection(eventsCollectionName);
+        const unarchived = { archived: { $ne: true }, $or: [{ megaLink: { $exists: true } }, { thumbnailLink: { $exists: true } }] };
+        const [oldest] = await collection.find(unarchived, { projection: { timestamp: 1 } })
+            .sort({ timestamp: 1 })
+            .limit(1)
+            .toArray();
+        if (!(oldest?.timestamp instanceof Date)) return [];
+        const cutoff = new Date(oldest.timestamp.getTime() + days * 24 * 60 * 60 * 1000);
+        const events = await collection.find(
+            { ...unarchived, timestamp: { $lt: cutoff } },
+            { projection: { _id: 1, megaLink: 1, thumbnailLink: 1 } }
+        ).toArray();
+        return events.map(({ _id, ...event }) => ({ ...event, id: _id }));
+    } catch (error) {
+        logger.error('Error connecting to MongoDB or loading events to archive:', error);
+        throw error;
+    }
+}
+
+export async function markVideoEventsArchived(ids) {
+    if (!Array.isArray(ids) || !ids.length) return 0;
+    try {
+        await client.connect();
+        const collection = client.db(dbName).collection(eventsCollectionName);
+        const result = await collection.updateMany(
+            { _id: { $in: ids } },
+            { $set: { archived: true, archivedAt: new Date() }, $unset: { megaLink: '', thumbnailLink: '' } }
+        );
+        return result.modifiedCount;
+    } catch (error) {
+        logger.error('Error connecting to MongoDB or archiving video events:', error);
         throw error;
     }
 }

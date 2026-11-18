@@ -239,7 +239,7 @@ describe('Ring refresh token persistence', () => {
 
         expect(client.find).toHaveBeenCalledWith(
             { ringAccountId: '123', timestamp: { $gte: start, $lt: end } },
-            { projection: { _id: 1, timestamp: 1, description: 1, category: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1 } }
+            { projection: { _id: 1, timestamp: 1, description: 1, category: 1, megaLink: 1, thumbnailLink: 1, cameraName: 1, archived: 1 } }
         );
         expect(eventCursor.sort).toHaveBeenCalledWith({ timestamp: -1 });
         expect(client.close).not.toHaveBeenCalled();

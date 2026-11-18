@@ -10,6 +10,7 @@ import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
 import { trackPendingUpload } from '../helpers/pendingUploadHelper/index.mjs';
 import { logger } from "../helpers/logHelper/index.mjs";
 import { getSlackSettings, storeVideoEvent } from '../helpers/dbHelper/index.mjs';
+import { archiveOldEventsIfStorageFull } from '../helpers/storageCleanupHelper/index.mjs';
 import { notifyPushSubscribers } from '../helpers/pushNotificationHelper/index.mjs';
 
 const { env } = process;
@@ -100,6 +101,8 @@ export async function handleRingNotification(camera, notif, emails, ringAccountI
                     await Promise.all(accountEmails.map(email =>
                         notifyPushSubscribers({ description, megaLink, ...savedEvent, cameraName: camera.name, category }, email)));
                 }
+                void archiveOldEventsIfStorageFull()
+                    .catch(error => logger.error('Could not archive old events to free MEGA storage:', error));
             } catch (error) {
                 logger.error('Failed to save or notify the account Mega upload event:', error);
             }
