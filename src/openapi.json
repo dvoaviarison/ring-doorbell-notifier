@@ -356,7 +356,7 @@
       "post": {
         "tags": ["Ring"],
         "summary": "Start a camera capture",
-        "description": "Starts capture in the background. Provide cameraName in the query, or cameraName/text in the JSON body.",
+        "description": "Starts capture in the background after confirming MEGA storage is configured. Provide cameraName in the query, or cameraName/text in the JSON body.",
         "parameters": [
           {
             "name": "cameraName",
@@ -399,6 +399,16 @@
           },
           "400": {
             "description": "A camera name was not provided",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "MEGA storage is not configured for the Ring owner",
             "content": {
               "text/html": {
                 "schema": {
@@ -799,6 +809,81 @@
                   "properties": {
                     "botToken": { "type": "string", "format": "password" },
                     "signingSecret": { "type": "string", "format": "password" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/settings/mega": {
+      "get": {
+        "tags": ["Settings"],
+        "summary": "Get the Ring owner's MEGA configuration status",
+        "description": "Available only to the signed-in Ring owner. Does not reveal credentials.",
+        "responses": {
+          "200": {
+            "description": "MEGA configuration status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["hasCredentials"],
+                  "properties": {
+                    "hasCredentials": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      },
+      "put": {
+        "tags": ["Settings"],
+        "summary": "Update the Ring owner's MEGA credentials",
+        "description": "Available only to the signed-in Ring owner. Both credentials are required.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "format": "password" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "MEGA credentials saved" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/settings/mega/secrets": {
+      "get": {
+        "tags": ["Settings"],
+        "summary": "Get the signed-in Ring owner's saved MEGA credentials",
+        "description": "Available only to the signed-in Ring owner. Only saved owner credentials are returned. Responses are not cached.",
+        "responses": {
+          "200": {
+            "description": "Saved credentials, or empty strings when unset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["email", "password"],
+                  "properties": {
+                    "email": { "type": "string", "format": "email" },
+                    "password": { "type": "string", "format": "password" }
                   }
                 }
               }

@@ -47,6 +47,7 @@ import {
     getVideoEventsForDay,
     getVideoEventThumbnailLink,
     getVideoEventMegaLink,
+    getOldestVideoEventsToArchive,
     getRefreshToken,
     storeRefreshToken,
     storeVideoEvent,
@@ -57,6 +58,10 @@ import {
     setPushCategories,
     getSlackSettings,
     updateSlackSettings,
+    getMegaSettings,
+    getMegaCredentials,
+    getMegaSettingsStatus,
+    updateMegaSettings,
     getSlackSigningCandidates,
     listRingAccounts
 } from './index.mjs';
@@ -64,9 +69,12 @@ import {
 const client = MongoClient.mock.results[0].value;
 const eventCursor = {
     sort: jest.fn(),
+    limit: jest.fn(),
     toArray: jest.fn()
 };
 const previousRecordingFolder = process.env.APP_RECORDING_FOLDER;
+const previousMegaEmail = process.env.MEGA_EMAIL;
+const previousMegaPassword = process.env.MEGA_PASSWORD;
 
 describe('Ring refresh token persistence', () => {
     beforeEach(() => {
@@ -86,6 +94,7 @@ describe('Ring refresh token persistence', () => {
         client.updateMany.mockResolvedValue({ modifiedCount: 0 });
         client.find.mockReturnValue(eventCursor);
         eventCursor.sort.mockReturnValue(eventCursor);
+        eventCursor.limit.mockReturnValue(eventCursor);
         eventCursor.toArray.mockResolvedValue([]);
         createVideoThumbnail.mockResolvedValue('Front door-2026-11-06_120000.jpg');
         uploadFileToMega.mockResolvedValue('https://mega.example/thumbnail');
@@ -97,6 +106,10 @@ describe('Ring refresh token persistence', () => {
         } else {
             process.env.APP_RECORDING_FOLDER = previousRecordingFolder;
         }
+        if (previousMegaEmail === undefined) delete process.env.MEGA_EMAIL;
+        else process.env.MEGA_EMAIL = previousMegaEmail;
+        if (previousMegaPassword === undefined) delete process.env.MEGA_PASSWORD;
+        else process.env.MEGA_PASSWORD = previousMegaPassword;
     });
 
     it('loads the refresh token from MongoDB', async () => {
@@ -144,7 +157,9 @@ describe('Ring refresh token persistence', () => {
             'Front door-2026-11-06_120000.mp4',
             'Front door',
             'delivery',
-            '123'
+            '123',
+            undefined,
+            { email: 'mega@example.com', password: 'mega-password' }
         );
 
         expect(client.insertOne).toHaveBeenCalledWith({
@@ -154,10 +169,14 @@ describe('Ring refresh token persistence', () => {
             megaLink: 'https://mega.example/video',
             cameraName: 'Front door',
             thumbnailLink: 'https://mega.example/thumbnail',
+            megaAccountEmail: 'mega@example.com',
             ringAccountId: '123'
         });
         expect(createVideoThumbnail).toHaveBeenCalledWith('Front door-2026-11-06_120000.mp4');
-        expect(uploadFileToMega).toHaveBeenCalledWith('Front door-2026-11-06_120000.jpg');
+        expect(uploadFileToMega).toHaveBeenCalledWith(
+            'Front door-2026-11-06_120000.jpg',
+            { email: 'mega@example.com', password: 'mega-password' }
+        );
         expect(trackPendingUpload).toHaveBeenCalledWith(
             expect.stringContaining('Front door-2026-11-06_120000.mp4')
         );
@@ -243,6 +262,32 @@ describe('Ring refresh token persistence', () => {
         );
         expect(eventCursor.sort).toHaveBeenCalledWith({ timestamp: -1 });
         expect(client.close).not.toHaveBeenCalled();
+    });
+
+    it('only selects archivable events for the requested Ring account', async () => {
+        eventCursor.toArray
+            .mockResolvedValueOnce([{ timestamp: new Date('2026-10-01T00:00:00.000Z') }])
+            .mockResolvedValueOnce([]);
+
+        await expect(getOldestVideoEventsToArchive(30, '123', 'mega@example.com')).resolves.toEqual([]);
+
+        expect(client.find).toHaveBeenNthCalledWith(1, {
+            ringAccountId: '123',
+            archived: { $ne: true },
+            $and: [
+                { $or: [{ megaLink: { $exists: true } }, { thumbnailLink: { $exists: true } }] },
+                { megaAccountEmail: 'mega@example.com' }
+            ]
+        }, { projection: { timestamp: 1 } });
+        expect(client.find).toHaveBeenNthCalledWith(2, {
+            ringAccountId: '123',
+            archived: { $ne: true },
+            $and: [
+                { $or: [{ megaLink: { $exists: true } }, { thumbnailLink: { $exists: true } }] },
+                { megaAccountEmail: 'mega@example.com' }
+            ],
+            timestamp: { $lt: new Date('2026-10-31T00:00:00.000Z') }
+        }, { projection: { _id: 1, megaLink: 1, thumbnailLink: 1 } });
     });
 
     it('isolates reads by verified Ring account and rejects missing identities', async () => {
@@ -423,6 +468,51 @@ describe('Ring refresh token persistence', () => {
         const update = client.updateOne.mock.calls[0][1].$set;
         expect(update).not.toHaveProperty('botToken');
         expect(update).not.toHaveProperty('signingSecret');
+    });
+
+    it('requires account MEGA settings even when old environment credentials remain configured', async () => {
+        process.env.MEGA_EMAIL = 'fallback@example.com';
+        process.env.MEGA_PASSWORD = 'fallback-password';
+        client.findOne.mockResolvedValue(null);
+
+        await expect(getMegaSettings('Person@Example.com')).resolves.toBeNull();
+        await expect(getMegaCredentials('Person@Example.com')).rejects.toThrow('MEGA storage is not configured for this Ring owner.');
+        await expect(getMegaSettingsStatus('Person@Example.com')).resolves.toEqual({
+            hasCredentials: false
+        });
+
+        client.findOne.mockResolvedValue({ email: 'owner@example.com', password: 'owner-password' });
+        await expect(getMegaCredentials('Person@Example.com')).resolves.toEqual({
+            email: 'owner@example.com',
+            password: 'owner-password'
+        });
+        await expect(getMegaSettingsStatus('Person@Example.com')).resolves.toEqual({
+            hasCredentials: true
+        });
+    });
+
+    it('requires complete account MEGA settings and saves them under the account key', async () => {
+        client.findOne.mockResolvedValueOnce({ email: 'owner@example.com' });
+        await expect(getMegaCredentials('person@example.com')).rejects.toThrow('MEGA storage is not configured for this Ring owner.');
+
+        client.findOne.mockResolvedValueOnce(null);
+        await expect(updateMegaSettings('Person@Example.com', { email: 'owner@example.com' }))
+            .rejects.toThrow('Both MEGA email and password are required.');
+
+        client.findOne.mockResolvedValueOnce(null);
+        await updateMegaSettings('Person@Example.com', { email: 'owner@example.com', password: 'owner-password' });
+        expect(client.updateOne).toHaveBeenCalledWith(
+            { key: 'account:person@example.com:megaSettings', accountEmail: 'person@example.com' },
+            { $set: {
+                email: 'owner@example.com',
+                password: 'owner-password',
+                accountEmail: 'person@example.com',
+                key: 'account:person@example.com:megaSettings',
+                type: 'megaSettings'
+            } },
+            { upsert: true }
+        );
+
     });
 
     it('returns only account-scoped Slack settings and signing candidates', async () => {

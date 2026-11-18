@@ -9,7 +9,7 @@ import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
 import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
 import { trackPendingUpload } from '../helpers/pendingUploadHelper/index.mjs';
 import { logger } from "../helpers/logHelper/index.mjs";
-import { getSlackSettings, storeVideoEvent } from '../helpers/dbHelper/index.mjs';
+import { getMegaCredentials, getSlackSettings, storeVideoEvent } from '../helpers/dbHelper/index.mjs';
 import { archiveOldEventsIfStorageFull } from '../helpers/storageCleanupHelper/index.mjs';
 import { notifyPushSubscribers } from '../helpers/pushNotificationHelper/index.mjs';
 
@@ -17,7 +17,7 @@ const { env } = process;
 const recordingDurationSec = 10;
 const doorbellNotificationCategory = 'com.ring.pn.live-event.ding';
 
-export async function handleRingNotification(camera, notif, emails, ringAccountId) {
+export async function handleRingNotification(camera, notif, emails, ringAccountId, configuredMegaCredentials) {
     const recipients = Array.isArray(emails) ? emails : [emails];
     if (!recipients.length || recipients.some(email => typeof email !== 'string' || !email.trim())) {
         throw new TypeError('At least one Google account email is required to handle Ring notifications.');
@@ -34,6 +34,15 @@ export async function handleRingNotification(camera, notif, emails, ringAccountI
         };
         void Promise.all(accountEmails.map(email => notifyPushSubscribers(callEvent, email)))
             .catch(error => logger.error('Could not send the doorbell call notification:', error));
+    }
+    let megaCredentials = configuredMegaCredentials;
+    if (!megaCredentials) {
+        try {
+            megaCredentials = await getMegaCredentials(accountEmail);
+        } catch (error) {
+            logger.error('Could not load the Ring owner’s MEGA storage settings:', error);
+            throw error;
+        }
     }
     let settings;
     try {
@@ -57,7 +66,7 @@ export async function handleRingNotification(camera, notif, emails, ringAccountI
     }
     logger.info('Video recorded. Uploading');
 
-    const megaUploadPromise = uploadFileToMega(videoFileName);
+    const megaUploadPromise = uploadFileToMega(videoFileName, megaCredentials);
 
     const eventPromise = env.APP_ENABLE_AI === 'true'
         ? getAIPoweredVideoDescription(videoFileName, camera.name)
@@ -94,20 +103,20 @@ export async function handleRingNotification(camera, notif, emails, ringAccountI
                 const { description, category } = await normalizedEventPromise;
                 const dingId = notif.data?.event?.ding?.id;
                 const ringEventId = typeof dingId === 'string' || typeof dingId === 'number' ? String(dingId) : undefined;
-                const savedEvent = await storeVideoEvent(description, megaLink, timestamp, videoFileName, camera.name, category, ringAccountId, ringEventId);
+                const savedEvent = await storeVideoEvent(description, megaLink, timestamp, videoFileName, camera.name, category, ringAccountId, ringEventId, megaCredentials);
                 eventSaved = true;
                 logger.info('Mega upload event saved to MongoDB');
                 if (!isDoorbellPress) {
                     await Promise.all(accountEmails.map(email =>
                         notifyPushSubscribers({ description, megaLink, ...savedEvent, cameraName: camera.name, category }, email)));
                 }
-                void archiveOldEventsIfStorageFull()
+                void archiveOldEventsIfStorageFull(accountEmail, ringAccountId, megaCredentials)
                     .catch(error => logger.error('Could not archive old events to free MEGA storage:', error));
             } catch (error) {
                 logger.error('Failed to save or notify the account Mega upload event:', error);
             }
         })
-        .catch(() => logger.error('Failed to upload video to Mega.'))
+        .catch(error => logger.error('Failed to upload video to Mega:', error))
         .finally(() => {
             if (!slackConfigured && eventSaved) {
                 releaseSlackFile();

@@ -10,7 +10,7 @@ async function check(membership, path, email = 'member@example.com', slackAuthen
 
 const group = { _id: '123', ownerEmail: 'owner@example.com', participants: ['owner@example.com', 'member@example.com'] };
 
-test.each(['/settings/slack', '/settings/slack/secrets', '/auth/ring/login', '/auth/ring/mfa'])(
+test.each(['/settings/slack', '/settings/slack/secrets', '/settings/mega', '/settings/mega/secrets', '/auth/ring/login', '/auth/ring/mfa'])(
   'members cannot manage owner settings at %s', async path => {
     const { res, next } = await check(group, path);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -33,8 +33,9 @@ test.each(['/events', '/cameras', '/cameras/live', '/capture'])(
   }
 );
 
-test('owners can configure Slack and issue signed Slack commands', async () => {
+test('owners can configure Slack and MEGA settings and issue signed Slack commands', async () => {
   expect((await check(group, '/settings/slack/secrets', 'owner@example.com')).next).toHaveBeenCalled();
+  expect((await check(group, '/settings/mega/secrets', 'owner@example.com')).next).toHaveBeenCalled();
   expect((await check(group, '/capture', 'owner@example.com', true)).next).toHaveBeenCalled();
 });
 

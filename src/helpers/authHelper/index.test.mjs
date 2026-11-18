@@ -55,7 +55,7 @@ describe('Ring authentication persistence', () => {
         expect(response.redirect).not.toHaveBeenCalled();
     });
 
-    it.each(['/', '/login', '/api-docs', '/api-docs/', '/api-docs/swagger-ui.css', '/auth/ring/login', '/settings/slack', '/push/config', '/push/subscriptions'])(
+    it.each(['/', '/login', '/api-docs', '/api-docs/', '/api-docs/swagger-ui.css', '/auth/ring/login', '/settings/slack', '/settings/mega', '/push/config', '/push/subscriptions'])(
         'allows %s without a Ring connection', (path) => {
         const next = jest.fn();
 

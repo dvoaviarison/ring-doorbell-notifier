@@ -18,6 +18,9 @@ import {
   setPushCategories,
   getSlackSettings,
   updateSlackSettings,
+  getMegaSettings,
+  getMegaSettingsStatus,
+  updateMegaSettings,
   getSlackSigningCandidates,
   listRingAccounts,
   storeRefreshToken,
@@ -30,6 +33,7 @@ import { openMegaFileStream } from './helpers/videoStreamHelper/index.mjs';
 import { createLiveViewRouter } from './helpers/liveViewHelper/index.mjs';
 import { createAccountRingManager } from './helpers/accountRingHelper/index.mjs';
 import { createSlackSettingsRouter } from './helpers/slackSettingsHelper/index.mjs';
+import { createMegaSettingsRouter } from './helpers/megaSettingsHelper/index.mjs';
 import { createRingOwnershipRouter, createRingOwnershipStore } from './helpers/ringOwnershipHelper/index.mjs';
 import { createRingAccessMiddleware } from './helpers/ringOwnershipHelper/access.mjs';
 import express from 'express';
@@ -53,7 +57,7 @@ const ringAccounts = createAccountRingManager({
   saveToken: storeRefreshToken, ownership
 });
 
-async function capture(cameraName, ownerEmail, recipients) {
+async function capture(cameraName, ownerEmail, recipients, megaCredentials) {
   const ringApi = ringAccounts.get(ownerEmail);
   const ringAccountId = ringAccounts.getRingAccountId(ownerEmail);
   if (!ringApi) {
@@ -64,7 +68,7 @@ async function capture(cameraName, ownerEmail, recipients) {
   const camera = findCamera(locations, cameraName);
   if (!camera) throw new Error('Camera not found.');
   const notif = { android_config: { body: `There is a motion at your ${camera.name}` } };
-  const notification = await handleRingNotification(camera, notif, recipients, ringAccountId);
+  const notification = await handleRingNotification(camera, notif, recipients, ringAccountId, megaCredentials);
   purgeLocalFiles();
   return notification;
 }
@@ -86,6 +90,9 @@ app.use(contextMiddleware);
 
 setupApiDocs(app, apiSpec);
 app.use('/settings', createSlackSettingsRouter({ getSlackSettings, updateSlackSettings, logger }));
+app.use('/settings', createMegaSettingsRouter({
+  getMegaSettings, getMegaSettingsStatus, updateMegaSettings, logger
+}));
 app.use('/settings/ring-access', createRingOwnershipRouter(ownership, logger, async email => {
   await ringAccounts.deactivate(email);
   await deleteAccountRefreshToken(email);
@@ -104,7 +111,7 @@ app.post('/health', (req, res) => {
 });
 
 // POST endpoint to force notification for slack
-app.post('/capture', (req, res) => {
+app.post('/capture', async (req, res) => {
   const cameraName = req.query.cameraName ?? req.body.cameraName ?? req.body.text;
   if (typeof cameraName !== 'string' || !cameraName.trim()) {
     return res.status(400).send('Select a camera before starting a capture.');
@@ -113,8 +120,19 @@ app.post('/capture', (req, res) => {
     return res.status(503).send('Ring is not connected. Sign in through A-Eye or the Ring authentication API.');
   }
 
+  let megaCredentials;
+  try {
+    megaCredentials = await getMegaSettings(req.ringOwner);
+  } catch (error) {
+    logger.error('Could not load MEGA settings for capture:', error);
+    return res.status(500).send('Could not check MEGA storage settings.');
+  }
+  if (!megaCredentials?.email || !megaCredentials?.password) {
+    return res.status(409).send('Set up MEGA storage in Settings before capturing video.');
+  }
+
   const recipients = [req.ringOwner, ...req.ringMembership.participants.filter(email => email !== req.ringOwner)];
-  void capture(cameraName.trim(), req.ringOwner, recipients).catch((error) => {
+  void capture(cameraName.trim(), req.ringOwner, recipients, megaCredentials).catch((error) => {
     logger.error(`Background capture failed for ${cameraName}:`, error);
   });
   return res.status(202).send('Capture started. Recording and Slack delivery are continuing in the background.');

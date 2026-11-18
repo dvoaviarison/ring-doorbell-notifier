@@ -7,15 +7,19 @@ import { trackPendingUpload } from '../pendingUploadHelper/index.mjs';
 
 const { env } = process;
 
-export function openMegaStorage() {
+export function openMegaStorage(credentials) {
+    if (typeof credentials?.email !== 'string' || !credentials.email ||
+        typeof credentials?.password !== 'string' || !credentials.password) {
+        throw new TypeError('MEGA email and password are required.');
+    }
     return new Storage({
-        email: env.MEGA_EMAIL,
-        password: env.MEGA_PASSWORD,
+        email: credentials.email,
+        password: credentials.password,
         userAgent: 'RingDoorbellNotifier'
     }).ready;
 }
 
-export async function uploadFileToMega(fileName) {
+export async function uploadFileToMega(fileName, credentials) {
     const filePath = `${env.APP_RECORDING_FOLDER}/${fileName}`;
     const stopTracking = trackPendingUpload(filePath);
 
@@ -24,7 +28,7 @@ export async function uploadFileToMega(fileName) {
         if (fileExists) {
             const fileContent = fs.createReadStream(filePath);
             const stats = await stat(filePath);
-            const storage = await openMegaStorage();
+            const storage = await openMegaStorage(credentials);
 
             const file = await storage.upload(
                 {

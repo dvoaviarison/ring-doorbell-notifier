@@ -14,6 +14,9 @@ export function createRingAccessMiddleware(ownership, logger) {
       if (req.path.startsWith('/settings/slack') && req.ringOwner !== req.accountEmail) {
         return res.status(403).json({ error: 'Only a Ring account owner can manage Slack settings.' });
       }
+      if (req.path.startsWith('/settings/mega') && req.ringOwner !== req.accountEmail) {
+        return res.status(403).json({ error: 'Only a Ring account owner can manage MEGA settings.' });
+      }
       if (['/auth/ring/login', '/auth/ring/mfa'].includes(req.path) &&
           req.ringMembership && req.ringOwner !== req.accountEmail) {
         return res.status(403).json({ error: 'Leave your shared Ring account before connecting another.' });

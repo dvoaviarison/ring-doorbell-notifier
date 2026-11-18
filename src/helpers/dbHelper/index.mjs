@@ -169,6 +169,73 @@ export async function updateSlackSettings(email, patch = {}) {
     }
 }
 
+export async function getMegaSettings(email) {
+    const accountEmail = normalizeEmail(email);
+    try {
+        const settings = await getAccountConfig(accountEmail, 'megaSettings');
+        if (!settings) return null;
+        return {
+            ...(typeof settings.email === 'string' ? { email: settings.email } : {}),
+            ...(typeof settings.password === 'string' ? { password: settings.password } : {})
+        };
+    } catch (error) {
+        logger.error('Error connecting to MongoDB or fetching account MEGA settings.');
+        throw error;
+    }
+}
+
+export async function getMegaCredentials(email) {
+    const settings = await getMegaSettings(email);
+    if (typeof settings?.email !== 'string' || !settings.email ||
+        typeof settings?.password !== 'string' || !settings.password) {
+        throw new Error('MEGA storage is not configured for this Ring owner. Set it up in Settings.');
+    }
+    return settings;
+}
+
+export async function getMegaSettingsStatus(email) {
+    const settings = await getMegaSettings(email);
+    return { hasCredentials: Boolean(settings?.email && settings?.password) };
+}
+
+export async function updateMegaSettings(email, patch = {}) {
+    const accountEmail = normalizeEmail(email);
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+        throw new TypeError('MEGA settings patch must be an object.');
+    }
+    const allowedFields = ['email', 'password'];
+    const update = Object.fromEntries(allowedFields
+        .filter((field) => Object.prototype.hasOwnProperty.call(patch, field) && patch[field] !== undefined)
+        .map((field) => [field, patch[field]]));
+    if (Object.values(update).some((value) => typeof value !== 'string')) {
+        throw new TypeError('MEGA settings values must be strings.');
+    }
+    if (!Object.keys(update).length) return getMegaSettings(accountEmail);
+
+    const existing = await getMegaSettings(accountEmail);
+    const credentials = {
+        email: update.email ?? existing?.email ?? '',
+        password: update.password ?? existing?.password ?? ''
+    };
+    if (!credentials.email || !credentials.password) {
+        throw new TypeError('Both MEGA email and password are required.');
+    }
+
+    try {
+        await client.connect();
+        const key = accountConfigKey(accountEmail, 'megaSettings');
+        await client.db(dbName).collection(configCollectionName).updateOne(
+            { key, accountEmail },
+            { $set: { ...credentials, accountEmail, key, type: 'megaSettings' } },
+            { upsert: true }
+        );
+        return getMegaSettings(accountEmail);
+    } catch (error) {
+        logger.error('Error connecting to MongoDB or updating account MEGA settings.');
+        throw error;
+    }
+}
+
 export async function getPushCategories(email) {
     const accountEmail = normalizeEmail(email);
     try {
@@ -224,7 +291,7 @@ export async function getSlackSigningCandidates() {
     }
 }
 
-async function uploadVideoThumbnail(videoFileName) {
+async function uploadVideoThumbnail(videoFileName, megaCredentials) {
     if (typeof videoFileName !== 'string' || !videoFileName) {
         return null;
     }
@@ -246,7 +313,9 @@ async function uploadVideoThumbnail(videoFileName) {
             return null;
         }
 
-        const thumbnailLink = await uploadFileToMega(thumbnailFileName);
+        const thumbnailLink = megaCredentials
+            ? await uploadFileToMega(thumbnailFileName, megaCredentials)
+            : await uploadFileToMega(thumbnailFileName);
         return typeof thumbnailLink === 'string' && thumbnailLink ? thumbnailLink : null;
     } catch (error) {
         logger.error('Failed to upload video thumbnail to Mega:', error);
@@ -258,9 +327,9 @@ async function uploadVideoThumbnail(videoFileName) {
     }
 }
 
-export async function storeVideoEvent(description, megaLink, timestamp = new Date(), videoFileName, cameraName, category = null, ringAccountId, ringEventId) {
+export async function storeVideoEvent(description, megaLink, timestamp = new Date(), videoFileName, cameraName, category = null, ringAccountId, ringEventId, megaCredentials) {
     const id = validateRingAccountId(ringAccountId);
-    const thumbnailLink = await uploadVideoThumbnail(videoFileName);
+    const thumbnailLink = await uploadVideoThumbnail(videoFileName, megaCredentials);
     try {
         await client.connect();
         const db = client.db(dbName);
@@ -272,6 +341,7 @@ export async function storeVideoEvent(description, megaLink, timestamp = new Dat
             megaLink,
             ...(typeof cameraName === 'string' && cameraName ? { cameraName } : {}),
             ...(typeof thumbnailLink === 'string' && thumbnailLink ? { thumbnailLink } : {}),
+            ...(typeof megaCredentials?.email === 'string' && megaCredentials.email ? { megaAccountEmail: megaCredentials.email } : {}),
             ringAccountId: id
         };
         if (typeof ringEventId === 'string' && ringEventId) {
@@ -320,11 +390,20 @@ export async function getVideoEventsForDay(start, end, ringAccountId) {
     }
 }
 
-export async function getOldestVideoEventsToArchive(days = 30) {
+export async function getOldestVideoEventsToArchive(days = 30, ringAccountId, megaAccountEmail) {
+    const accountId = validateRingAccountId(ringAccountId);
+    const accountEmail = normalizeEmail(megaAccountEmail);
     try {
         await client.connect();
         const collection = client.db(dbName).collection(eventsCollectionName);
-        const unarchived = { archived: { $ne: true }, $or: [{ megaLink: { $exists: true } }, { thumbnailLink: { $exists: true } }] };
+        const unarchived = {
+            ringAccountId: accountId,
+            archived: { $ne: true },
+            $and: [
+                { $or: [{ megaLink: { $exists: true } }, { thumbnailLink: { $exists: true } }] },
+                { megaAccountEmail: accountEmail }
+            ]
+        };
         const [oldest] = await collection.find(unarchived, { projection: { timestamp: 1 } })
             .sort({ timestamp: 1 })
             .limit(1)

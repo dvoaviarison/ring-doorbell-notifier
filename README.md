@@ -10,7 +10,7 @@ Simple, Gemini AI-powered ([Gemini](https://ai.google.dev/gemini-api/docs/models
 
 ## Database diagram
 
-The app stores data in MongoDB collections for account configuration, Ring ownership, video events, and browser push subscriptions. `pushCategories` is a configuration record in the `configuration` collection, not a separate collection. `GoogleIdentity` is a logical account reference rather than a collection; ownership participants and push subscription data are stored within their respective documents.
+The app stores data in MongoDB collections for account configuration, Ring ownership, video events, and browser push subscriptions. `pushCategories` and `megaSettings` are account-scoped records in the `configuration` collection, not separate collections. MEGA credentials are stored in the Ring owner's `megaSettings` record; each video event records the MEGA account email used for its files. `GoogleIdentity` is a logical account reference rather than a collection; ownership participants and push subscription data are stored within their respective documents.
 
 <!-- mermaid-checked: every attribute is `<type> <name> [<key>] ["<description>"]` with at most one of PK/FK/UK, no \n in descriptions, no {} in descriptions, every relationship label is double-quoted -->
 ```mermaid
@@ -26,11 +26,13 @@ erDiagram
         ObjectId id PK
         string accountEmail FK
         string key
-        string type "includes pushCategories"
-        mixed value "category list when type is pushCategories"
+        string type "includes refreshToken, pushCategories, slackSettings, and megaSettings"
+        mixed value "refresh token or category list when applicable"
         string botToken
         string channelId
         string signingSecret
+        string email "MEGA login email when type is megaSettings"
+        string password "MEGA password when type is megaSettings"
     }
     RingOwnership {
         string id PK
@@ -46,6 +48,7 @@ erDiagram
         string description
         string category
         string megaLink
+        string megaAccountEmail "MEGA account used to store the event files"
         string cameraName
         string thumbnailLink
     }
@@ -58,32 +61,11 @@ erDiagram
     }
 ```
 
-## How to run this locally
-- Configure Google OAuth on this backend: set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ALLOWED_ORIGINS` (comma-separated frontend origins), and `A_EYE_SESSION_SECRET` (at least 32 random bytes; generate with `openssl rand -hex 32`). Register each allowed origin's `/auth/google/callback` URL as an authorized redirect URI in Google Cloud, for example `http://localhost:5173/auth/google/callback` and `https://a-eye-home.onrender.com/auth/google/callback`. Use the same OAuth web client for both origins. HTTPS is required except for localhost.
-- Registration is open to any Google account with a verified email; first sign-in creates access without an invitation. `GOOGLE_ALLOWED_EMAILS`, if left in an existing environment, is ignored and no longer restricts access. Google OAuth consent-screen publishing and test-user restrictions still apply independently.
-- Google sign-in protects Swagger and API routes, including Ring sign-in. `/health` and signed Slack capture requests remain available without a Google session. Slack capture signatures are matched to an account's signing secret; each account must use a distinct Slack app. To access Swagger directly, add the backend's browser origin to `GOOGLE_ALLOWED_ORIGINS`, register its `/auth/google/callback` URL with Google, and visit `/auth/google` at that origin. After signing in, `/` redirects to Swagger at `/api-docs/`. A request without a Google session returns HTTP 401.
-- Google sign-in uses a 10-day inactivity window: authenticated app requests renew the session for another 10 days. Signing out clears the cookie on that device. Sessions are signed and stateless, so signing out does not revoke a previously copied cookie; keep devices and cookies secure and rotate `A_EYE_SESSION_SECRET` to invalidate all sessions.
-- Fill in the required variables in `.env.sample` and save a copy as `.env`. Set `MONGO_DB_CONNECTION_STRING` and a long random `SESSION_SECRET` for Ring login. `MONGO_DB_EVENTS_COLLECTION_NAME` selects the MongoDB collection for Mega upload events (default: `events`). Each successfully uploaded video is recorded with its UTC timestamp, camera name, event description (without the camera name or Slack `@channel` prefix), and Mega link; the thumbnail link is included when thumbnail generation and upload succeed. The `@channel` prefix is added separately for Slack notifications. On Render, set `SESSION_SECRET` under the service's **Environment** settings; without it the app uses a temporary random secret, so sessions are invalidated whenever the server restarts.
-- The Gemini video-description prompt is defined in `src/helpers/aiHelper/prompts.mjs`, not in an environment variable or user setting. Deploy the updated backend image before removing `APP_AI_USER_PROMPT` from an existing deployment, since older images still require it.
-- Gemini returns a JSON description and category (`delivery`, `vehicle`, `person`, `animal`, `trash`, or `uncategorized`). Trash includes identifiable garbage and recycling trucks even when passing by, and takes priority over other categories. The prompt reserves `person` for someone approaching or close to the house; a distant passerby alone is `uncategorized`. Gemini's judgment may not always be accurate. The category is saved with each event and returned by `/events`; it is null if AI is disabled or fails, and may be absent from older events. Older category names are translated when read. Slack and push notifications continue to use the description text.
-- Trash push notifications are enabled by default, including for accounts with existing category preferences; users can disable them in A-Eye. Each device still needs an active browser push subscription.
-- Use Node.js 22 or newer for Ring push notifications. The Docker image uses Node 22 and pins the Ring push receiver to a version that correctly parses Ring's notification encryption headers.
-- Install FFmpeg on the host when running outside Docker; it is used to create each event's JPEG thumbnail. Set `FFMPEG_PATH` if the executable is not named `ffmpeg` or is not on `PATH`. Thumbnail generation is best-effort, so a failed extraction or upload does not prevent saving the video event.
-- Run `npm install` then `npm start`
-- A Ring profile has one Google-account owner, who can configure its Slack connection and invite users by verified Google email in Settings. Invitees accept in A Eye and can view the shared history and cameras, capture video, and use their own push subscriptions; they cannot configure the owner's Ring or Slack settings. Each Google account can own or join only one Ring account at a time. Owners can remove members or release the account, which removes all member access while preserving Ring event history. The owner must tell invitees to sign in; the app does not send invitation emails.
-- Within one backend process, each Ring profile has one owner connection and camera listener. A camera notification is recorded and saved once, then sent to the owner's Slack and each participant's push subscriptions. Multiple backend processes do not coordinate listeners. Signed-in owners can reveal their saved Slack secrets in Settings; use HTTPS and protect Google accounts and sessions. MongoDB stores credentials, so restrict database access and backups accordingly.
-- Recipients are determined when a notification or capture starts; deliveries already in progress may complete after a member is removed. Releasing an account disables new access before its connection and saved token are removed. If release fails, the owner can retry it in Settings. A failed initial connection may retain its ownership claim so the same owner can retry. The Ring client may retain an underlying push receiver until the backend process exits, even after its application listener is removed.
-- The current Ring client library does not expose a way to close its underlying push receiver when a camera API is disconnected. Listener handoffs stop processing through the previous listener, but may leave its underlying push connection open until the process exits.
-- The deployment is not separately provisioned per user: MongoDB, the configured MEGA account, server resources and optional Gemini API credentials/quotas are shared globally. Videos and thumbnails from all users are uploaded to the operator's MEGA account; its operator can access them, and MEGA links may be shared. Open registration can increase storage, bandwidth, compute and AI usage/costs. Plan capacity and privacy accordingly before exposing the service publicly.
-- Use HTTPS outside your local machine so Ring credentials and session cookies are protected in transit.
-- To enable browser push notifications, generate a VAPID key pair with `npx web-push generate-vapid-keys` and set `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_VAPID_SUBJECT` in the server environment (for example, `mailto:admin@example.com`). Keep the private key secret stable; changing it requires browsers to subscribe again. Configure subscriptions through A-Eye. Motion notifications are sent after a video is uploaded and its event is saved. Doorbell-press notifications are sent immediately and, where supported, offer Take call and Ignore actions; doorbell presses are not filtered by event-category preferences.
-
-## How to run as a service using forever
-- Install forever: `npm install forever -g`
-- Run `npm run start-service`
-- To stop the process: `npm run stop-service`
-- To view running services: `npm run list-services`
-By running as a service, the app would auto-restart in case of crash.
+## How to run locally
+- Install Node.js 22 or newer. Install FFmpeg if you want video thumbnails.
+- Copy `.env.sample` to `.env` and set `MONGO_DB_CONNECTION_STRING`, `SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ALLOWED_ORIGINS`, and `A_EYE_SESSION_SECRET`. Register each allowed origin's `/auth/google/callback` URL as a Google OAuth redirect URI.
+- Run `npm install`, then `npm start`. The backend listens on `APP_SERVER_PORT` (default `3600`).
+- Sign in through A-Eye and configure MEGA under **Settings → Storage** before storing video uploads.
 
 ## How to run with Docker Compose
 - Copy `.env.sample` to `.env` and fill in the required values, including `MONGO_DB_CONNECTION_STRING` and a long random `SESSION_SECRET`.

@@ -6,8 +6,8 @@ import { openMegaStorage } from '../uploadHelper/index.mjs';
 const usageThreshold = 0.9;
 const archiveWindowDays = 30;
 const minCheckIntervalMs = 10 * 60 * 1000;
-let cleanupInProgress = false;
-let lastCheckAt = 0;
+const cleanupInProgress = new Set();
+const lastCheckAt = new Map();
 
 function findStorageNode(storage, link) {
     if (typeof link !== 'string' || !link) return null;
@@ -18,18 +18,18 @@ function findStorageNode(storage, link) {
     }
 }
 
-export async function archiveOldEventsIfStorageFull() {
-    if (cleanupInProgress || Date.now() - lastCheckAt < minCheckIntervalMs) return 0;
-    cleanupInProgress = true;
-    lastCheckAt = Date.now();
+export async function archiveOldEventsIfStorageFull(ownerEmail, ringAccountId, credentials) {
+    if (cleanupInProgress.has(ownerEmail) || Date.now() - (lastCheckAt.get(ownerEmail) ?? 0) < minCheckIntervalMs) return 0;
+    cleanupInProgress.add(ownerEmail);
+    lastCheckAt.set(ownerEmail, Date.now());
     let storage;
     try {
-        storage = await openMegaStorage();
+        storage = await openMegaStorage(credentials);
         const { spaceUsed, spaceTotal } = await storage.getAccountInfo();
         if (!(spaceTotal > 0) || spaceUsed / spaceTotal < usageThreshold) return 0;
 
         logger.info(`MEGA storage is ${Math.round((spaceUsed / spaceTotal) * 100)}% full; archiving the oldest ${archiveWindowDays} days of events.`);
-        const events = await getOldestVideoEventsToArchive(archiveWindowDays);
+        const events = await getOldestVideoEventsToArchive(archiveWindowDays, ringAccountId, credentials.email);
         const archivedIds = [];
         for (const event of events) {
             try {
@@ -46,6 +46,6 @@ export async function archiveOldEventsIfStorageFull() {
         return archivedIds.length;
     } finally {
         storage?.close();
-        cleanupInProgress = false;
+        cleanupInProgress.delete(ownerEmail);
     }
 }
