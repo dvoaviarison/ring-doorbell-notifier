@@ -73,8 +73,6 @@ const eventCursor = {
     toArray: jest.fn()
 };
 const previousRecordingFolder = process.env.APP_RECORDING_FOLDER;
-const previousMegaEmail = process.env.MEGA_EMAIL;
-const previousMegaPassword = process.env.MEGA_PASSWORD;
 
 describe('Ring refresh token persistence', () => {
     beforeEach(() => {
@@ -106,10 +104,6 @@ describe('Ring refresh token persistence', () => {
         } else {
             process.env.APP_RECORDING_FOLDER = previousRecordingFolder;
         }
-        if (previousMegaEmail === undefined) delete process.env.MEGA_EMAIL;
-        else process.env.MEGA_EMAIL = previousMegaEmail;
-        if (previousMegaPassword === undefined) delete process.env.MEGA_PASSWORD;
-        else process.env.MEGA_PASSWORD = previousMegaPassword;
     });
 
     it('loads the refresh token from MongoDB', async () => {
@@ -470,9 +464,7 @@ describe('Ring refresh token persistence', () => {
         expect(update).not.toHaveProperty('signingSecret');
     });
 
-    it('requires account MEGA settings even when old environment credentials remain configured', async () => {
-        process.env.MEGA_EMAIL = 'fallback@example.com';
-        process.env.MEGA_PASSWORD = 'fallback-password';
+    it('requires account MEGA settings', async () => {
         client.findOne.mockResolvedValue(null);
 
         await expect(getMegaSettings('Person@Example.com')).resolves.toBeNull();

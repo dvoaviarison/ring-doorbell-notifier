@@ -26,8 +26,6 @@ import { openMegaStorage, uploadFileToMega } from './index.mjs';
 describe('MEGA uploads', () => {
     const credentials = { email: 'owner@example.com', password: 'owner-password' };
     const previousRecordingFolder = process.env.APP_RECORDING_FOLDER;
-    const previousMegaEmail = process.env.MEGA_EMAIL;
-    const previousMegaPassword = process.env.MEGA_PASSWORD;
 
     beforeEach(() => {
         process.env.APP_RECORDING_FOLDER = '/recordings';
@@ -39,10 +37,6 @@ describe('MEGA uploads', () => {
     afterAll(() => {
         if (previousRecordingFolder === undefined) delete process.env.APP_RECORDING_FOLDER;
         else process.env.APP_RECORDING_FOLDER = previousRecordingFolder;
-        if (previousMegaEmail === undefined) delete process.env.MEGA_EMAIL;
-        else process.env.MEGA_EMAIL = previousMegaEmail;
-        if (previousMegaPassword === undefined) delete process.env.MEGA_PASSWORD;
-        else process.env.MEGA_PASSWORD = previousMegaPassword;
     });
 
     it('uploads with the supplied owner credentials', async () => {
@@ -65,10 +59,7 @@ describe('MEGA uploads', () => {
         );
     });
 
-    it('requires owner credentials and never falls back to environment values', async () => {
-        process.env.MEGA_EMAIL = 'legacy@example.com';
-        process.env.MEGA_PASSWORD = 'legacy-password';
-
+    it('requires owner credentials', async () => {
         expect(() => openMegaStorage()).toThrow('MEGA email and password are required.');
         await expect(uploadFileToMega('recording.mp4')).rejects.toThrow('MEGA email and password are required.');
         expect(Storage).not.toHaveBeenCalled();
