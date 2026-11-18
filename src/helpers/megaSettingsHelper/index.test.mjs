@@ -32,6 +32,7 @@ test('MEGA settings expose only status unless the owner explicitly loads saved c
       headers: { 'content-type': 'application/json', 'x-test-user': 'owner@example.com' },
       body: JSON.stringify({ email: ' Owner@Example.com ', password: 'new-password' })
     });
+
     expect(update.status).toBe(200);
     expect(updateMegaSettings).toHaveBeenCalledWith('owner@example.com', {
       email: 'owner@example.com', password: 'new-password'
@@ -44,6 +45,45 @@ test('MEGA settings expose only status unless the owner explicitly loads saved c
     });
     expect(invalid.status).toBe(400);
 
+  } finally {
+    await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
+  }
+});
+
+test('MEGA usage loads the owner account and closes the storage session on success or failure', async () => {
+  const credentials = { email: 'owner@example.com', password: 'owner-password' };
+  const getMegaSettings = jest.fn().mockResolvedValue(credentials);
+  const storage = { getAccountInfo: jest.fn().mockResolvedValue({ spaceUsed: 450, spaceTotal: 1000 }), close: jest.fn() };
+  const openMegaStorage = jest.fn().mockResolvedValue(storage);
+  const logger = { error: jest.fn() };
+  const app = express();
+  app.use((req, _res, next) => { req.accountEmail = 'owner@example.com'; next(); });
+  app.use('/settings', createMegaSettingsRouter({ getMegaSettings, openMegaStorage, logger }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  const url = `http://127.0.0.1:${server.address().port}/settings/mega/usage`;
+
+  try {
+    const response = await fetch(url);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ spaceUsed: 450, spaceTotal: 1000 });
+    expect(getMegaSettings).toHaveBeenCalledWith('owner@example.com');
+    expect(openMegaStorage).toHaveBeenCalledWith(credentials);
+    expect(storage.close).toHaveBeenCalledTimes(1);
+
+    storage.getAccountInfo.mockRejectedValueOnce(new Error('MEGA unavailable'));
+    expect((await fetch(url)).status).toBe(500);
+    expect(storage.close).toHaveBeenCalledTimes(2);
+    expect(logger.error).toHaveBeenCalled();
+
+    storage.getAccountInfo.mockResolvedValueOnce({ spaceUsed: 1, spaceTotal: 0 });
+    expect((await fetch(url)).status).toBe(500);
+    expect(storage.close).toHaveBeenCalledTimes(3);
+
+    getMegaSettings.mockResolvedValueOnce(null);
+    expect((await fetch(url)).status).toBe(409);
+    expect(openMegaStorage).toHaveBeenCalledTimes(3);
   } finally {
     await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
   }

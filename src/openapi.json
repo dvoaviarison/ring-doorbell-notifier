@@ -868,6 +868,34 @@
         }
       }
     },
+    "/settings/mega/usage": {
+      "get": {
+        "tags": ["Settings"],
+        "summary": "Get the Ring owner's MEGA storage usage",
+        "description": "Available only to the signed-in Ring owner. Responses are not cached.",
+        "responses": {
+          "200": {
+            "description": "Used and total MEGA storage in bytes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["spaceUsed", "spaceTotal"],
+                  "properties": {
+                    "spaceUsed": { "type": "number", "minimum": 0 },
+                    "spaceTotal": { "type": "number", "minimum": 0, "exclusiveMinimum": true }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "Only Ring owners can view storage usage" },
+          "409": { "description": "MEGA storage is not configured" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
     "/settings/mega/secrets": {
       "get": {
         "tags": ["Settings"],

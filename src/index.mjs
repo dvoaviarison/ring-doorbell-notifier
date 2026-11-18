@@ -34,6 +34,7 @@ import { createLiveViewRouter } from './helpers/liveViewHelper/index.mjs';
 import { createAccountRingManager } from './helpers/accountRingHelper/index.mjs';
 import { createSlackSettingsRouter } from './helpers/slackSettingsHelper/index.mjs';
 import { createMegaSettingsRouter } from './helpers/megaSettingsHelper/index.mjs';
+import { openMegaStorage } from './helpers/uploadHelper/index.mjs';
 import { createRingOwnershipRouter, createRingOwnershipStore } from './helpers/ringOwnershipHelper/index.mjs';
 import { createRingAccessMiddleware } from './helpers/ringOwnershipHelper/access.mjs';
 import express from 'express';
@@ -91,7 +92,7 @@ app.use(contextMiddleware);
 setupApiDocs(app, apiSpec);
 app.use('/settings', createSlackSettingsRouter({ getSlackSettings, updateSlackSettings, logger }));
 app.use('/settings', createMegaSettingsRouter({
-  getMegaSettings, getMegaSettingsStatus, updateMegaSettings, logger
+  getMegaSettings, getMegaSettingsStatus, updateMegaSettings, openMegaStorage, logger
 }));
 app.use('/settings/ring-access', createRingOwnershipRouter(ownership, logger, async email => {
   await ringAccounts.deactivate(email);
