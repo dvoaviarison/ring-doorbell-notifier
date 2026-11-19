@@ -34,7 +34,8 @@ export function createLiveViewRouter(getRingApi, logger) {
         throw new Error('Ring returned an invalid battery level.');
       }
       res.set('Cache-Control', 'no-store');
-      return res.json({ batteryLevel: level });
+      const wired = level === null && camera.data?.settings?.power_mode === 'wired';
+      return res.json({ batteryLevel: level, powerSource: wired ? 'wired' : 'unknown' });
     } catch (error) {
       logger.error('Could not load Ring camera battery level:', error);
       return res.status(502).json({ error: 'Could not load camera battery level.' });

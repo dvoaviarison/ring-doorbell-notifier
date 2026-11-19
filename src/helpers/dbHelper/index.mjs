@@ -56,6 +56,25 @@ function validateRingAccountId(ringAccountId) {
     return ringAccountId;
 }
 
+export async function claimRingNotification(ringAccountId, ringEventId) {
+    const accountId = validateRingAccountId(ringAccountId);
+    if (typeof ringEventId !== 'string' || !ringEventId.trim()) {
+        throw new TypeError('A Ring event ID is required.');
+    }
+    const id = createHash('sha256').update(JSON.stringify([accountId, ringEventId])).digest('hex');
+    await client.connect();
+    try {
+        await client.db(dbName).collection('processedRingNotifications').insertOne({
+            _id: id,
+            claimedAt: new Date()
+        });
+        return true;
+    } catch (error) {
+        if (error.code === 11000) return false;
+        throw error;
+    }
+}
+
 async function getAccountConfig(email, name) {
     const accountEmail = normalizeEmail(email);
     await client.connect();

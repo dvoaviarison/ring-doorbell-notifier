@@ -49,6 +49,7 @@ import {
     getVideoEventMegaLink,
     getOldestVideoEventsToArchive,
     getRefreshToken,
+    claimRingNotification,
     storeRefreshToken,
     storeVideoEvent,
     storePushSubscription,
@@ -112,7 +113,25 @@ describe('Ring refresh token persistence', () => {
             key: 'account:person@example.com:refreshToken',
             accountEmail: 'person@example.com'
         });
+
         expect(client.close).not.toHaveBeenCalled();
+    });
+
+    it('atomically claims each Ring event and only treats duplicate keys as already processed', async () => {
+        expect(await claimRingNotification('123', 'event-1')).toBe(true);
+        const first = client.insertOne.mock.calls[0][0];
+        expect(client.collection).toHaveBeenCalledWith('processedRingNotifications');
+        expect(first).toEqual({ _id: expect.any(String), claimedAt: expect.any(Date) });
+        client.insertOne.mockRejectedValueOnce({ code: 11000 });
+        expect(await claimRingNotification('123', 'event-1')).toBe(false);
+        expect(client.insertOne.mock.calls[1][0]._id).toBe(first._id);
+        await claimRingNotification('123', 'event-2');
+        expect(client.insertOne.mock.calls[2][0]._id).not.toBe(first._id);
+        await claimRingNotification('456', 'event-1');
+        expect(client.insertOne.mock.calls[3][0]._id).not.toBe(first._id);
+        client.insertOne.mockRejectedValueOnce(new Error('database unavailable'));
+        await expect(claimRingNotification('123', 'event-3')).rejects.toThrow('database unavailable');
+        await expect(claimRingNotification('123', '')).rejects.toThrow('A Ring event ID is required');
     });
 
     it('requires Ring sign-in when MongoDB has no refresh token', async () => {

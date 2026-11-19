@@ -3,6 +3,7 @@ import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { handleRingNotification } from "./ringNotificationHandler/index.mjs";
 import { stopProcessInMs } from "./helpers/processHelper/index.mjs";
 import { logger } from "./helpers/logHelper/index.mjs";
+import { claimRingNotification } from './helpers/dbHelper/index.mjs';
 
 const { env } = process;
 let autoStopScheduled = false;
@@ -26,9 +27,20 @@ export async function run(ringApi, ringAccountId, getRecipients) {
 
         allCameras?.forEach((camera) => {
             subscriptions.push(camera.onNewNotification.subscribe(async (notif) => {
+                const id = notif.data?.event?.ding?.id;
+                if (!((typeof id === 'string' && id.trim()) || Number.isSafeInteger(id))) {
+                    logger.error('Cannot process Ring notification without a valid event ID.');
+                    return;
+                }
                 try {
                     const recipients = await getRecipients();
-                    if (recipients.length) await handleRingNotification(camera, notif, recipients, ringAccountId);
+                    if (recipients.length) {
+                        if (!await claimRingNotification(ringAccountId, String(id))) {
+                            logger.info('Ignoring duplicate Ring event notification.');
+                            return;
+                        }
+                        await handleRingNotification(camera, notif, recipients, ringAccountId);
+                    }
                 } catch (error) {
                     logger.error('Could not process Ring notification for this account:', error);
                 } finally {

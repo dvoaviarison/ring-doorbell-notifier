@@ -67,6 +67,7 @@ erDiagram
 - Run `npm install`, then `npm start`. The backend listens on `APP_SERVER_PORT` (default `3600`).
 - Sign in through A-Eye and configure MEGA under **Settings → Storage** before storing video uploads.
 - Each incoming request and its completion are logged with a request ID, method, route template, status, and duration. Failed responses and interrupted requests are logged as errors; query strings, bodies, and route parameter values are not logged.
+- Ring notifications are claimed by account and event ID in MongoDB before processing, so repeated deliveries and restarts do not trigger the same event again. A failure after a claim is logged but not automatically retried.
 
 ## How to run with Docker Compose
 - Copy `.env.sample` to `.env` and fill in the required values, including `MONGO_DB_CONNECTION_STRING` and a long random `SESSION_SECRET`.
