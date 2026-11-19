@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { run } from './app.mjs';
 import { logger } from './helpers/logHelper/index.mjs';
+import { createRequestLogger } from './helpers/logHelper/requestLogger.mjs';
 import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
@@ -75,6 +76,12 @@ async function capture(cameraName, ownerEmail, recipients, megaCredentials) {
 }
 
 const captureRawBody = (req, _res, buffer) => { req.rawBody = buffer.toString('utf8'); };
+app.use(createRequestLogger(logger, [
+  ...Object.keys(apiSpec.paths),
+  '/auth/session', '/auth/google', '/auth/google/callback', '/auth/logout',
+  '/cameras/live/battery', '/cameras/live/snapshot', '/cameras/live/start',
+  '/cameras/live/stop', '/cameras/live/speaker'
+]));
 app.use(express.json({ verify: captureRawBody }));
 app.use(express.urlencoded({ extended: true, verify: captureRawBody }));
 
@@ -101,13 +108,11 @@ app.use('/settings/ring-access', createRingOwnershipRouter(ownership, logger, as
 
 // Healthcheck endpoint
 app.get('/health', (req, res) => {
-  logger.info(`${req.method} - ${req.url}`);
   res.send('Healthy');
 });
 
 // Healthcheck via slack
 app.post('/health', (req, res) => {
-  logger.info(`${req.method} - ${req.url}`);
   res.send('Healthy');
 });
 
