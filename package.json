@@ -12,6 +12,7 @@
     "megajs": "^1.2.0",
     "mongodb": "^6.17.0",
     "ring-client-api": "^14.0.1",
+    "rxjs": "^7.8.2",
     "swagger-ui-express": "^5.0.1",
     "util": "^0.12.5",
     "web-push": "^4.0.0"

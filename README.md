@@ -68,6 +68,7 @@ erDiagram
 - Sign in through A-Eye and configure MEGA under **Settings → Storage** before storing video uploads.
 - Each incoming request and its completion are logged with a request ID, method, route template, status, and duration. Failed responses and interrupted requests are logged as errors; query strings, bodies, and route parameter values are not logged.
 - Ring notifications are claimed by account and event ID in MongoDB before processing, so repeated deliveries and restarts do not trigger the same event again. A failure after a claim is logged but not automatically retried.
+- Live recordings use an enlarged FFmpeg RTP reorder queue and receive buffer to help with bursty or out-of-order video packets, including higher-bitrate 2K streams. Buffering cannot recover packets lost before they reach the recorder and may add latency.
 
 ## How to run with Docker Compose
 - Copy `.env.sample` to `.env` and fill in the required values, including `MONGO_DB_CONNECTION_STRING` and a long random `SESSION_SECRET`.
