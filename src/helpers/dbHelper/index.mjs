@@ -6,9 +6,9 @@ import { purgeLocalFiles } from '../fileHelper/index.mjs';
 import { logger } from "../logHelper/index.mjs";
 import { eventCategories, eventCategoryList } from '../eventCategories/index.mjs';
 import { removeSlackChannelPrefix } from '../messageHelper/index.mjs';
-import { trackPendingUpload } from '../pendingUploadHelper/index.mjs';
+import { trackPendingUpload } from '../fileHelper/pendingUpload.mjs';
 import { uploadFileToMega } from '../uploadHelper/index.mjs';
-import { createVideoThumbnail } from '../videoThumbnailHelper/index.mjs';
+import { createVideoThumbnail } from '../videoHelper/thumbnail.mjs';
 
 const { env } = process;
 const client = new MongoClient(env.MONGO_DB_CONNECTION_STRING, {

@@ -11,7 +11,7 @@ jest.mock('../dbHelper/index.mjs', () => ({
 
 import * as webPush from 'web-push';
 import { deletePushSubscription, getPushCategories, getPushSubscriptions } from '../dbHelper/index.mjs';
-import { getPushConfiguration, notifyPushSubscribers } from './index.mjs';
+import { getPushConfiguration, notifyPushSubscribers } from './push.mjs';
 
 describe('browser push notifications', () => {
     const accountEmail = 'person@example.com';

@@ -3,7 +3,7 @@ import fs from 'fs';
 import { Storage } from 'megajs'
 import { stat } from 'fs/promises';
 import { checkFileExists, purgeLocalFiles } from '../fileHelper/index.mjs';
-import { trackPendingUpload } from '../pendingUploadHelper/index.mjs';
+import { trackPendingUpload } from '../fileHelper/pendingUpload.mjs';
 
 const { env } = process;
 

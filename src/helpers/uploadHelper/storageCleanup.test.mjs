@@ -3,12 +3,12 @@ jest.mock('../dbHelper/index.mjs', () => ({
     getOldestVideoEventsToArchive: jest.fn(),
     markVideoEventsArchived: jest.fn()
 }));
-jest.mock('../uploadHelper/index.mjs', () => ({ openMegaStorage: jest.fn() }));
+jest.mock('./index.mjs', () => ({ openMegaStorage: jest.fn() }));
 jest.mock('../logHelper/index.mjs', () => ({ logger: { info: jest.fn(), error: jest.fn() } }));
 
 import { getOldestVideoEventsToArchive, markVideoEventsArchived } from '../dbHelper/index.mjs';
-import { openMegaStorage } from '../uploadHelper/index.mjs';
-import { archiveOldEventsIfStorageFull } from './index.mjs';
+import { openMegaStorage } from './index.mjs';
+import { archiveOldEventsIfStorageFull } from './storageCleanup.mjs';
 
 describe('archiveOldEventsIfStorageFull', () => {
     const ownerEmail = 'owner@example.com';

@@ -7,11 +7,11 @@ import { recordVideoFromCamera } from '../helpers/videoHelper/index.mjs';
 import { formatMessage, removeSlackChannelPrefix } from '../helpers/messageHelper/index.mjs';
 import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
 import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
-import { trackPendingUpload } from '../helpers/pendingUploadHelper/index.mjs';
+import { trackPendingUpload } from '../helpers/fileHelper/pendingUpload.mjs';
 import { logger } from "../helpers/logHelper/index.mjs";
 import { getMegaCredentials, getSlackSettings, storeVideoEvent } from '../helpers/dbHelper/index.mjs';
-import { archiveOldEventsIfStorageFull } from '../helpers/storageCleanupHelper/index.mjs';
-import { notifyPushSubscribers } from '../helpers/pushNotificationHelper/index.mjs';
+import { archiveOldEventsIfStorageFull } from '../helpers/uploadHelper/storageCleanup.mjs';
+import { notifyPushSubscribers } from '../helpers/notificationHelper/push.mjs';
 
 const { env } = process;
 const recordingDurationSec = 10;

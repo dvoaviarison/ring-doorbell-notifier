@@ -22,7 +22,7 @@ jest.mock('mongodb', () => ({
     ServerApiVersion: { v1: 'v1' }
 }));
 
-jest.mock('../videoThumbnailHelper/index.mjs', () => ({
+jest.mock('../videoHelper/thumbnail.mjs', () => ({
     createVideoThumbnail: jest.fn()
 }));
 
@@ -30,7 +30,7 @@ jest.mock('../uploadHelper/index.mjs', () => ({
     uploadFileToMega: jest.fn()
 }));
 
-jest.mock('../pendingUploadHelper/index.mjs', () => ({
+jest.mock('../fileHelper/pendingUpload.mjs', () => ({
     trackPendingUpload: jest.fn(() => jest.fn())
 }));
 
@@ -39,9 +39,9 @@ jest.mock('../fileHelper/index.mjs', () => ({
 }));
 
 import { MongoClient, ObjectId } from 'mongodb';
-import { createVideoThumbnail } from '../videoThumbnailHelper/index.mjs';
+import { createVideoThumbnail } from '../videoHelper/thumbnail.mjs';
 import { uploadFileToMega } from '../uploadHelper/index.mjs';
-import { trackPendingUpload } from '../pendingUploadHelper/index.mjs';
+import { trackPendingUpload } from '../fileHelper/pendingUpload.mjs';
 import { purgeLocalFiles } from '../fileHelper/index.mjs';
 import {
     getVideoEventsForDay,

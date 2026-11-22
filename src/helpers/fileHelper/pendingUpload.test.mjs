@@ -1,5 +1,5 @@
 import path from 'path';
-import { isUploadPending, trackPendingUpload } from './index.mjs';
+import { isUploadPending, trackPendingUpload } from './pendingUpload.mjs';
 
 describe('pending upload tracking', () => {
     it('keeps a recording marked as pending until all uploads finish', () => {

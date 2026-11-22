@@ -8,7 +8,7 @@ jest.mock('node:fs/promises', () => ({
 
 import { execFile } from 'node:child_process';
 import { stat } from 'node:fs/promises';
-import { createVideoThumbnail } from './index.mjs';
+import { createVideoThumbnail } from './thumbnail.mjs';
 
 describe('createVideoThumbnail', () => {
     const previousRecordingFolder = process.env.APP_RECORDING_FOLDER;

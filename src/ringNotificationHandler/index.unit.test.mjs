@@ -30,7 +30,7 @@ jest.mock('../helpers/aiHelper/index.mjs', () => ({
     getAIPoweredVideoDescription: jest.fn()
 }));
 
-jest.mock('../helpers/pendingUploadHelper/index.mjs', () => ({
+jest.mock('../helpers/fileHelper/pendingUpload.mjs', () => ({
     trackPendingUpload: jest.fn(() => jest.fn())
 }));
 
@@ -40,11 +40,11 @@ jest.mock('../helpers/dbHelper/index.mjs', () => ({
     getMegaCredentials: jest.fn()
 }));
 
-jest.mock('../helpers/pushNotificationHelper/index.mjs', () => ({
+jest.mock('../helpers/notificationHelper/push.mjs', () => ({
     notifyPushSubscribers: jest.fn()
 }));
 
-jest.mock('../helpers/storageCleanupHelper/index.mjs', () => ({
+jest.mock('../helpers/uploadHelper/storageCleanup.mjs', () => ({
     archiveOldEventsIfStorageFull: jest.fn().mockResolvedValue(0)
 }));
 
@@ -58,11 +58,11 @@ import { recordVideoFromCamera } from '../helpers/videoHelper/index.mjs';
 import { uploadFileToMega } from '../helpers/uploadHelper/index.mjs';
 import { formatMessage } from '../helpers/messageHelper/index.mjs';
 import { getAIPoweredVideoDescription } from '../helpers/aiHelper/index.mjs';
-import { trackPendingUpload } from '../helpers/pendingUploadHelper/index.mjs';
+import { trackPendingUpload } from '../helpers/fileHelper/pendingUpload.mjs';
 import { purgeLocalFiles } from '../helpers/fileHelper/index.mjs';
 import { getMegaCredentials, getSlackSettings, storeVideoEvent } from '../helpers/dbHelper/index.mjs';
-import { notifyPushSubscribers } from '../helpers/pushNotificationHelper/index.mjs';
-import { archiveOldEventsIfStorageFull } from '../helpers/storageCleanupHelper/index.mjs';
+import { notifyPushSubscribers } from '../helpers/notificationHelper/push.mjs';
+import { archiveOldEventsIfStorageFull } from '../helpers/uploadHelper/storageCleanup.mjs';
 
 describe('handleRingNotification', () => {
     const accountEmail = 'person@example.com';

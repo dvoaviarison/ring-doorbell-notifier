@@ -1,6 +1,6 @@
 import express from 'express';
 import { createSlackSettingsRouter } from './index.mjs';
-import { createAccessMiddleware, createGoogleAuth, signPayload } from '../googleAuthHelper/index.mjs';
+import { createAccessMiddleware, createGoogleAuth, signPayload } from '../authHelper/google.mjs';
 
 test('settings use the signed-in account and never return saved secrets', async () => {
   const saved = new Map([

@@ -3,7 +3,7 @@ jest.mock('../dbHelper/index.mjs', () => ({ storeRefreshToken: jest.fn() }));
 
 import express from 'express';
 import { authMiddleware, setupAuth, setupSession } from '../authHelper/index.mjs';
-import { createAccessMiddleware, createGoogleAuth, signPayload } from '../googleAuthHelper/index.mjs';
+import { createAccessMiddleware, createGoogleAuth, signPayload } from '../authHelper/google.mjs';
 import { setupApiDocs } from './index.mjs';
 
 describe('Swagger landing page', () => {

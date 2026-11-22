@@ -5,7 +5,7 @@ jest.mock('megajs', () => ({
 }));
 
 import { File } from 'megajs';
-import { openMegaFileStream } from './index.mjs';
+import { openMegaFileStream } from './stream.mjs';
 
 describe('openMegaFileStream', () => {
     const stream = { on: jest.fn() };

@@ -1,5 +1,5 @@
 import express from 'express';
-import { createAccessMiddleware, createGoogleAuth, signPayload, verifySignedPayload } from './index.mjs';
+import { createAccessMiddleware, createGoogleAuth, signPayload, verifySignedPayload } from './google.mjs';
 
 const secret = 'a-test-secret-at-least-thirty-two-bytes-long';
 const env = {

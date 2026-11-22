@@ -14,13 +14,13 @@ jest.mock('../fileHelper/index.mjs', () => ({
     checkFileExists: jest.fn().mockResolvedValue(true),
     purgeLocalFiles: jest.fn()
 }));
-jest.mock('../pendingUploadHelper/index.mjs', () => ({ trackPendingUpload: jest.fn(() => jest.fn()) }));
+jest.mock('../fileHelper/pendingUpload.mjs', () => ({ trackPendingUpload: jest.fn(() => jest.fn()) }));
 
 import { Storage } from 'megajs';
 import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
 import { checkFileExists, purgeLocalFiles } from '../fileHelper/index.mjs';
-import { trackPendingUpload } from '../pendingUploadHelper/index.mjs';
+import { trackPendingUpload } from '../fileHelper/pendingUpload.mjs';
 import { openMegaStorage, uploadFileToMega } from './index.mjs';
 
 describe('MEGA uploads', () => {

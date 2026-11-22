@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { sleep } from "../processHelper/index.mjs";
 import { logger } from "../logHelper/index.mjs";
-import { isUploadPending } from "../pendingUploadHelper/index.mjs";
+import { isUploadPending } from "./pendingUpload.mjs";
 
 const { env } = process;
 

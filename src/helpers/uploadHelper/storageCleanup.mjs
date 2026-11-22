@@ -1,7 +1,7 @@
 import { File } from 'megajs';
 import { getOldestVideoEventsToArchive, markVideoEventsArchived } from '../dbHelper/index.mjs';
 import { logger } from '../logHelper/index.mjs';
-import { openMegaStorage } from '../uploadHelper/index.mjs';
+import { openMegaStorage } from './index.mjs';
 
 const usageThreshold = 0.9;
 const archiveWindowDays = 30;

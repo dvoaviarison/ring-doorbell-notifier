@@ -1,5 +1,5 @@
 import winston from 'winston';
-import { asyncLocalStorage } from '../contextHelper/index.mjs';
+import { asyncLocalStorage } from './context.mjs';
 
 const transports = [
   new winston.transports.Console(),

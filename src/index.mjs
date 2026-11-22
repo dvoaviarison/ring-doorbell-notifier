@@ -5,9 +5,9 @@ import { createRequestLogger } from './helpers/logHelper/requestLogger.mjs';
 import { purgeLocalFiles } from './helpers/fileHelper/index.mjs';
 import { getLoggedInRingApi, findCamera } from './helpers/ringHelper/index.mjs';
 import { handleRingNotification } from './ringNotificationHandler/index.mjs';
-import { contextMiddleware } from './helpers/contextHelper/index.mjs';
+import { contextMiddleware } from './helpers/logHelper/context.mjs';
 import { setupAuth, setupSession, authMiddleware, resolveSlackAccount } from './helpers/authHelper/index.mjs';
-import { createAccessMiddleware, createGoogleAuth } from './helpers/googleAuthHelper/index.mjs';
+import { createAccessMiddleware, createGoogleAuth } from './helpers/authHelper/google.mjs';
 import { setupApiDocs } from './helpers/apiDocsHelper/index.mjs';
 import {
   deletePushSubscription,
@@ -29,8 +29,8 @@ import {
   getRingOwnershipCollection
 } from './helpers/dbHelper/index.mjs';
 import { eventCategories, eventCategoryList } from './helpers/eventCategories/index.mjs';
-import { getPushConfiguration } from './helpers/pushNotificationHelper/index.mjs';
-import { openMegaFileStream } from './helpers/videoStreamHelper/index.mjs';
+import { getPushConfiguration } from './helpers/notificationHelper/push.mjs';
+import { openMegaFileStream } from './helpers/videoHelper/stream.mjs';
 import { createLiveViewRouter } from './helpers/liveViewHelper/index.mjs';
 import { createAccountRingManager } from './helpers/accountRingHelper/index.mjs';
 import { createSlackSettingsRouter } from './helpers/slackSettingsHelper/index.mjs';
