@@ -42,7 +42,7 @@ describe('createVideoThumbnail', () => {
         expect(execFile).toHaveBeenCalledWith('/usr/bin/ffmpeg', [
             '-hide_banner',
             '-loglevel', 'error',
-            '-ss', '0.5',
+            '-ss', '1',
             '-i', '/recordings/Front door-2026-11-06_120000.mp4',
             '-frames:v', '1',
             '-vf', 'scale=320:-2',

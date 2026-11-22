@@ -23,7 +23,7 @@ export async function createVideoThumbnail(videoFileName) {
     await execFileAsync(ffmpegPath, [
         '-hide_banner',
         '-loglevel', 'error',
-        '-ss', '0.5',
+        '-ss', '1',
         '-i', videoPath,
         '-frames:v', '1',
         '-vf', 'scale=320:-2',
