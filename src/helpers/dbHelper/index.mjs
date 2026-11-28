@@ -29,6 +29,11 @@ export async function getRingOwnershipCollection() {
     return client.db(dbName).collection('ringOwnership');
 }
 
+export async function getAdminCollection() {
+    await client.connect();
+    return client.db(dbName).collection('administrators');
+}
+
 export async function deleteAccountRefreshToken(email) {
     const accountEmail = normalizeEmail(email);
     await client.connect();

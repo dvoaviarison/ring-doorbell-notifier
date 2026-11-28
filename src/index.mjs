@@ -8,6 +8,7 @@ import { handleRingNotification } from './ringNotificationHandler/index.mjs';
 import { contextMiddleware } from './helpers/logHelper/context.mjs';
 import { setupAuth, setupSession, authMiddleware, resolveSlackAccount } from './helpers/authHelper/index.mjs';
 import { createAccessMiddleware, createGoogleAuth } from './helpers/authHelper/google.mjs';
+import { createAdminStore, createAdminGuard, createAdminRouter } from './helpers/authHelper/admin.mjs';
 import { setupApiDocs } from './helpers/apiDocsHelper/index.mjs';
 import {
   deletePushSubscription,
@@ -26,7 +27,8 @@ import {
   listRingAccounts,
   storeRefreshToken,
   deleteAccountRefreshToken,
-  getRingOwnershipCollection
+  getRingOwnershipCollection,
+  getAdminCollection
 } from './helpers/dbHelper/index.mjs';
 import { eventCategories, eventCategoryList } from './helpers/eventCategories/index.mjs';
 import { getPushConfiguration } from './helpers/notificationHelper/push.mjs';
@@ -53,6 +55,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const apiSpec = JSON.parse(readFileSync(path.join(__dirname, 'openapi.json'), 'utf8'));
 const ownership = createRingOwnershipStore(await getRingOwnershipCollection());
+const admins = createAdminStore(await getAdminCollection(), env.A_EYE_ADMIN_EMAILS ?? 'daniel.voaviarison@gmail.com');
 await ownership.initialize();
 const ringAccounts = createAccountRingManager({
   createApi: getLoggedInRingApi, run, logger,
@@ -85,10 +88,14 @@ app.use(createRequestLogger(logger, [
 app.use(express.json({ verify: captureRawBody }));
 app.use(express.urlencoded({ extended: true, verify: captureRawBody }));
 
-const googleAuth = createGoogleAuth(env, logger);
+const googleAuth = createGoogleAuth(env, logger, undefined, admins.isAdmin);
 googleAuth.setup(app);
 app.use(createAccessMiddleware(googleAuth, req => resolveSlackAccount(req, async () =>
   await getSlackSigningCandidates(), logger)));
+
+app.use('/settings/admin', createAdminRouter(admins, ownership, logger,
+  env.GOOGLE_ALLOWED_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)));
+app.post('/capture', createAdminGuard(admins, logger, true));
 
 // Configure session and Ring authentication
 setupSession(app);

@@ -120,6 +120,18 @@ test('a member can leave without releasing the owner account', async () => {
   expect((await store.getByRingId('1')).ownerEmail).toBe('owner@example.com');
 });
 
+test('tenant list distinguishes accepted invitees and pending invitations', async () => {
+  const store = createRingOwnershipStore(collection());
+  await store.claim('owner@example.com', '1');
+  await store.invite('owner@example.com', 'member@example.com');
+  await store.accept('member@example.com', '1');
+  await store.invite('owner@example.com', 'pending@example.com');
+  expect(await store.listTenants()).toEqual([{
+    ringAccountId: '1', ownerEmail: 'owner@example.com',
+    participants: ['member@example.com'], invitations: ['pending@example.com']
+  }]);
+});
+
 test('membership routes use the authenticated email for invitation acceptance and hide owner details from members', async () => {
   const store = createRingOwnershipStore(collection());
   await store.claim('owner@example.com', '1');

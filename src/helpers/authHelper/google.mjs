@@ -66,7 +66,7 @@ function getProfilePicture(value) {
   }
 }
 
-export function createGoogleAuth(env, logger, clientFactory = (id, secret, redirect) => new OAuth2Client(id, secret, redirect)) {
+export function createGoogleAuth(env, logger, clientFactory = (id, secret, redirect) => new OAuth2Client(id, secret, redirect), isAdmin = async () => false) {
   const { GOOGLE_CLIENT_ID: clientId, GOOGLE_CLIENT_SECRET: clientSecret, A_EYE_SESSION_SECRET: secret } = env;
   const origins = (env.GOOGLE_ALLOWED_ORIGINS ?? '').split(',').map(value => value.trim()).filter(Boolean).map(value => {
     const url = new URL(value);
@@ -114,14 +114,22 @@ export function createGoogleAuth(env, logger, clientFactory = (id, secret, redir
   }
 
   function setup(app) {
-    app.get('/auth/session', (req, res) => {
+    app.get('/auth/session', async (req, res) => {
       const user = getUser(req);
-      if (user) renewSession(req, res, user);
-      res.set('Cache-Control', 'no-store').json(user ? {
-        authenticated: true,
-        email: user.email,
-        ...(typeof user.picture === 'string' ? { picture: user.picture } : {})
-      } : { authenticated: false });
+      res.set('Cache-Control', 'no-store');
+      try {
+        const admin = user ? await isAdmin(user.email) : false;
+        if (user) renewSession(req, res, user);
+        res.json(user ? {
+          authenticated: true,
+          email: user.email,
+          isAdmin: admin,
+          ...(typeof user.picture === 'string' ? { picture: user.picture } : {})
+        } : { authenticated: false });
+      } catch (error) {
+        logger.error('Could not check administrator access:', error);
+        res.status(503).json({ error: 'Could not check administrator access.' });
+      }
     });
 
     app.get('/auth/google', (req, res) => {

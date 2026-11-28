@@ -356,7 +356,7 @@
       "post": {
         "tags": ["Ring"],
         "summary": "Start a camera capture",
-        "description": "Starts capture in the background after confirming MEGA storage is configured. Provide cameraName in the query, or cameraName/text in the JSON body.",
+        "description": "Starts capture in the background after confirming MEGA storage is configured. Requires an A-Eye administrator session or a valid account-bound Slack signature. Provide cameraName in the query, or cameraName/text in the JSON body.",
         "parameters": [
           {
             "name": "cameraName",
@@ -406,6 +406,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Administrator access is required"
           },
           "409": {
             "description": "MEGA storage is not configured for the Ring owner",

@@ -108,7 +108,7 @@ describe('Google authentication', () => {
     expect(allowed.headers.get('set-cookie')).toContain('Max-Age=864000');
     expect(await allowed.json()).toEqual({ ok: true, email: 'user@example.com' });
     const status = await fetch(`${url}/auth/session`, { headers: { 'x-test-host': host, cookie: session } });
-    expect(await status.json()).toEqual({ authenticated: true, email: 'user@example.com', picture: 'https://example.com/avatar.png' });
+    expect(await status.json()).toEqual({ authenticated: true, email: 'user@example.com', isAdmin: false, picture: 'https://example.com/avatar.png' });
     expect((await fetch(`${url}/auth/logout`, { method: 'POST', headers: { 'x-test-host': host, origin: 'https://attacker.example', cookie: session } })).status).toBe(403);
     const logout = await fetch(`${url}/auth/logout`, { method: 'POST', headers: { 'x-test-host': host, origin, cookie: session } });
     expect(logout.status).toBe(204);
@@ -198,7 +198,7 @@ describe('Google authentication', () => {
     const status = await fetch(`${url}/auth/session`, {
       headers: { 'x-test-host': 'localhost:5173', cookie: session }
     });
-    expect(await status.json()).toEqual({ authenticated: true, email: 'user@example.com' });
+    expect(await status.json()).toEqual({ authenticated: true, email: 'user@example.com', isAdmin: false });
   });
 
   test.each([

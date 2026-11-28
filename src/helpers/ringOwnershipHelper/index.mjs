@@ -27,6 +27,18 @@ export function createRingOwnershipStore(collection) {
     return collection.findOne({ _id: ringAccountId });
   }
 
+  async function listTenants() {
+    const groups = await collection.find({}, {
+      projection: { _id: 1, ownerEmail: 1, participants: 1, invitations: 1 }
+    }).toArray();
+    return groups.map(group => ({
+      ringAccountId: group._id,
+      ownerEmail: group.ownerEmail,
+      participants: group.participants.filter(email => email !== group.ownerEmail),
+      invitations: group.invitations
+    }));
+  }
+
   async function claim(email, ringAccountId) {
     const ownerEmail = normalizeMemberEmail(email);
     if (typeof ringAccountId !== 'string' || !/^[1-9]\d*$/.test(ringAccountId)) {
@@ -111,7 +123,7 @@ export function createRingOwnershipStore(collection) {
     return { owner: false };
   }
 
-  return { initialize, getMembership, getByRingId, claim, invite, getInvitations, accept, remove, leave };
+  return { initialize, getMembership, getByRingId, listTenants, claim, invite, getInvitations, accept, remove, leave };
 }
 
 export function createRingOwnershipRouter(store, logger, onOwnerLeave) {

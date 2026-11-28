@@ -10,7 +10,7 @@ Simple, Gemini AI-powered ([Gemini](https://ai.google.dev/gemini-api/docs/models
 
 ## Database diagram
 
-The app stores data in MongoDB collections for account configuration, Ring ownership, video events, and browser push subscriptions. `pushCategories` and `megaSettings` are account-scoped records in the `configuration` collection, not separate collections. MEGA credentials are stored in the Ring owner's `megaSettings` record; each video event records the MEGA account email used for its files. `GoogleIdentity` is a logical account reference rather than a collection; ownership participants and push subscription data are stored within their respective documents.
+The app stores data in MongoDB collections for account configuration, administrators, Ring ownership, video events, and browser push subscriptions. `pushCategories` and `megaSettings` are account-scoped records in the `configuration` collection, not separate collections. MEGA credentials are stored in the Ring owner's `megaSettings` record; each video event records the MEGA account email used for its files. `GoogleIdentity` is a logical account reference rather than a collection; ownership participants and push subscription data are stored within their respective documents.
 
 <!-- mermaid-checked: every attribute is `<type> <name> [<key>] ["<description>"]` with at most one of PK/FK/UK, no \n in descriptions, no {} in descriptions, every relationship label is double-quoted -->
 ```mermaid
@@ -66,6 +66,7 @@ erDiagram
 - Copy `.env.sample` to `.env` and set `MONGO_DB_CONNECTION_STRING`, `SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ALLOWED_ORIGINS`, and `A_EYE_SESSION_SECRET`. Register each allowed origin's `/auth/google/callback` URL as a Google OAuth redirect URI.
 - Run `npm install`, then `npm start`. The backend listens on `APP_SERVER_PORT` (default `3600`).
 - Sign in through A-Eye and configure MEGA under **Settings → Storage** before storing video uploads.
+- A-Eye administrators are separate from Google Cloud IAM. The bootstrap admin defaults to `daniel.voaviarison@gmail.com`; set `A_EYE_ADMIN_EMAILS` to a comma-separated list to override it. Admins can add verified Google account emails through the Admin tab; these grants persist in MongoDB's `administrators` collection. Added users see the tab after signing in or refreshing. Admins can view all Ring tenants and invitees and add other admins. The app's capture endpoint requires an admin Google session, except for valid account-bound Slack commands.
 - Each incoming request and its completion are logged with a request ID, method, route template, status, and duration. Failed responses and interrupted requests are logged as errors; query strings, bodies, and route parameter values are not logged.
 - Ring notifications are claimed by account and event ID in MongoDB before processing, so repeated deliveries and restarts do not trigger the same event again. A failure after a claim is logged but not automatically retried.
 - Live recordings use an enlarged FFmpeg RTP reorder queue and receive buffer to help with bursty or out-of-order video packets, including higher-bitrate 2K streams. Buffering cannot recover packets lost before they reach the recorder and may add latency.
